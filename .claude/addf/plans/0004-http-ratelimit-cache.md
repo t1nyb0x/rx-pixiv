@@ -1,6 +1,6 @@
 # Plan 0004: HTTP 基盤・レート制御・キャッシュ
 
-## 実装状況: 進行中（2026-08-10）
+## 実装状況: 完了（2026-08-10）
 
 owner_feedback: 不要
 
@@ -102,13 +102,13 @@ HTTP timeout・限定 retry・物理試行ごとの rate limit・経路別 circu
 
 ## 完了条件
 
-- [ ] `MockAgent` によるテストが全項目で緑（タイムアウト・1回リトライ・429 非リトライ）
-- [ ] トークンバケットとサーキットブレーカがフェイクタイマーで検証済み
-- [ ] TTL 失効・LRU 追い出しが検証済み
-- [ ] 外部ライブラリ（`bottleneck` / `opossum` / `p-limit` / `lru-cache`）を追加していない
-- [ ] `IWorkCache` の実装が非同期シグネチャである
-- [ ] テストが実ネットワークに一切出ない
-- [ ] rate limit が `HttpClient` の各物理試行へ、circuit breaker が `CircuitProtectedSource` の論理取得経路へ合成され、設定が動作へ反映される
+- [x] `MockAgent` によるテストが全項目で緑（タイムアウト・1回リトライ・429 非リトライ）
+- [x] トークンバケットとサーキットブレーカがフェイクタイマーで検証済み
+- [x] TTL 失効・LRU 追い出しが検証済み
+- [x] 外部ライブラリ（`bottleneck` / `opossum` / `p-limit` / `lru-cache`）を追加していない
+- [x] `IWorkCache` の実装が非同期シグネチャである
+- [x] テストが実ネットワークに一切出ない
+- [x] rate limit が `HttpClient` の各物理試行へ、circuit breaker が `CircuitProtectedSource` の論理取得経路へ合成され、設定が動作へ反映される
 
 ## AI 実装時間見積もり
 

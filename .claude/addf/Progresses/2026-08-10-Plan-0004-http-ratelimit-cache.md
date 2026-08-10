@@ -1,4 +1,4 @@
-# 進捗表
+# 進捗表（Plan 0004 アーカイブ）
 
 ## 運用ルール
 
@@ -87,7 +87,88 @@
 
 ## タスク
 
-（現在タスクなし）
+### 現在のタスク: Plan 0004 HTTP 基盤・レート制御・キャッシュ
 
-> 新しいタスク開始時は以下の構造で記録する:
-> `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
+#### サブタスクチェックリスト
+
+##### フェーズ0: 契約と設定境界
+
+- [x] Plan 0004、ADR 0001・0011・0016、後続 Plan 0005、関連 knowhow を読む
+- [x] HTTP 4xx は 404・429 だけを共通エラーへ写像し、その他は source が応答本文を判定できるよう返す
+- [x] 作品・ユーザー・not_found を用途別 LRU に分け、TTL と容量の違いを型の外側で管理する
+- [x] Plan 0004 の環境変数を schema・`.env.example`・文書へ同期する
+
+##### フェーズ1: HTTP と上流保護
+
+- [x] undici Agent・User-Agent・AbortSignal timeout を使う HttpClient を実装する
+- [x] network / upstream_5xx だけを250ms+jitter後に1回リトライし、timeout / 429 / 4xx は再試行しない
+- [x] ホスト別トークンバケットを実装し、pixiv の持続1rps・burst3を設定可能にする
+- [x] source全体を包み、60秒内5連続失敗で開き、外部キャンセルを数えない CircuitBreaker を実装する
+
+##### フェーズ2: キャッシュと同時実行
+
+- [x] TTL失効と参照時LRU更新を行う汎用 LruTtlCache を実装する
+- [x] IWorkCache の非同期実装を作品6h・ユーザー1h・not_found 10分の用途別キャッシュで構成する
+- [x] 最大同時実行数を守り、同期例外でも枠を解放する pLimit 相当を実装する
+
+##### フェーズ3: テストと品質ゲート
+
+- [x] MockAgent で timeout・1回retry・429非retry・User-Agent を実ネットワークなしで検証する
+- [x] fake timer で token bucket・circuit breaker・TTL・LRU・concurrency を検証する
+- [x] build / typecheck / lint / fmt:check / coverage を通す
+- [x] コード・文書・コントリビューションレビューを実施し、主題内指摘を反映する
+- [x] knowhow・Feedback・Plan・TODO・Progress を完了同期する
+- [x] 日本語規約でコミット・pushし、GitHub Actionsが緑であることを確認する
+
+#### 日記
+
+##### 2026-08-10 — Plan 0004 の境界を確定
+
+**やったこと**:
+Plan、関連 ADR、アーキテクチャ、既存ポートと設定を読み、HTTP・上流保護・キャッシュ・同時実行へ分解した。
+共通 HttpClient は 404 と 429 と 5xx を FetchError に写像し、その他4xxは source固有の応答判定を妨げないため
+HttpResponse として返す方針にした。
+
+**今の見立て**:
+方向性の確信度は高い。MockAgent を dispatcher として注入し、時刻・jitterも境界から注入可能にすれば、
+実ネットワークと実時間に依存せず全状態遷移を検証できる。
+
+**次の自分へ**:
+まず config と独立ユーティリティを実装し、その型を使って HttpClient・WorkCache を組み立てる。
+
+**気になっていること**:
+Plan の「すべてフェイクタイマー」は MockAgent の即時応答テストには時計が不要だが、timeout/retry待ちは
+明示的に fake timer で駆動する。意味のない fake timer 適用は避ける。
+
+##### 2026-08-10 — 実装・レビュー・品質ゲートを完了
+
+**やったこと**:
+各物理HTTP試行をrate limitする `HttpClient`、sourceの取得・検証・写像全体を包む
+`CircuitProtectedSource`、60秒窓の `CircuitBreaker`、用途別LRUキャッシュ、同時実行制御を実装した。
+コード・文書・コントリビューションレビューの全指摘を反映し、製品ゲートは88テストとcoverageを含め全通過した。
+
+**今の見立て**:
+Plan 0004 の実装契約は満たしている。transportの物理試行とsourceの論理経路で保護責務を分けたため、
+retryのrate limit迂回と200応答後のparse error見落としをどちらも防げている。
+
+**次の自分へ**:
+実装コミットをpushしてActionsを確認し、Plan・TODOを完了同期してProgressをアーカイブする。
+
+**気になっていること**:
+ADDF全体テストは隔離設定で既知のtemplate-sync Test 4bのみ再現し、今回はPyYAMLを取得できない
+Codexネットワーク制約でfrontmatter suiteもSKIP相当のexit 2になった。いずれも製品差分とは独立し、Feedback記録済み。
+
+##### 2026-08-10 — 実装コミットとActionsを確認
+
+**やったこと**:
+実装コミット `67af6da` をmainへpushし、GitHub Actionsのquality、hadolint、image build/pushを確認した。
+deployは未設定のため設計どおり安全にskipされ、release workflowも成功した。
+
+**今の見立て**:
+Plan 0004 は実装・検証・レビュー・配布経路の全完了条件を満たした。
+
+**次の自分へ**:
+次は着手可能になった Plan 0005 のR-18スパイクとAjax sourceから開始する。
+
+**気になっていること**:
+なし。
