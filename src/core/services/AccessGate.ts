@@ -101,9 +101,10 @@ export class AccessGate {
    */
   public async isBlocked(ref: PixivRef, authorPixivUserId?: string): Promise<boolean> {
     try {
-      if (ref.kind !== "shortlink") {
-        const target = ref.kind === "user" ? "user" : "artwork";
-        if (await this.#blocks.find({ kind: target, id: ref.id })) return true;
+      if (ref.kind === "artwork") {
+        if (await this.#blocks.find({ kind: "artwork", id: ref.id })) return true;
+      } else if (ref.kind === "user") {
+        if (await this.#blocks.find({ kind: "user", id: ref.id })) return true;
       }
       if (authorPixivUserId !== undefined) {
         if (await this.#blocks.find({ kind: "user", id: authorPixivUserId })) return true;

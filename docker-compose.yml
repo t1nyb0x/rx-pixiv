@@ -6,7 +6,7 @@ services:
       - path: .env
         required: false
     environment:
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: redis://redis:6379
     expose:
       - "9090"
   redis:

@@ -26,7 +26,9 @@ edge: blocked-by 0006
 
 ## 現状の挙動
 
-未実装。
+表示計画・レンダラ・Discord handler・実行時DIは未実装。
+Plan 0011 の core、memory/Redis repository、`OwnerCommandService` は実装済みで、
+残る owner handler・reply map・Redis起動配線も本Planで統合する。
 
 ## 変更内容（項目・フェーズ）
 
@@ -62,6 +64,8 @@ edge: blocked-by 0006
 
 - **対象**: `src/adapters/discord/MessageHandler.ts`
 - Bot 自身・他 Bot を無視、チャンネル送信可否を確認
+- `OwnerCommandHandler` を先頭に置き、オーナーDMだけ `OwnerCommandService` へ渡す。
+  `DirectMessages` intent と `Message` / `Channel` partial を有効にする
 - `traceId` を発番し、子ロガーで通す
 - 禁止・許可チャンネル・クールダウンのゲートを通す（[Plan 0011](0011-admin-and-abuse-control.md) と実装が重なる）
 - `UrlDetector` → 最大3 URL、**同時実行2本**（`Promise.all` を無制限に使わない）
@@ -76,8 +80,8 @@ edge: blocked-by 0006
 - **対象**: `src/adapters/discord/replyTracker.ts`
 - 元メッセージ ID → Bot 返信 ID を Redis に保持（TTL 24h、`app:reply:{id}`）
 - `messageDelete` で Bot の返信を削除する
-- Redis 実装は [Plan 0011](0011-admin-and-abuse-control.md) で用意する。
-  本 Plan 単独で先行実装する場合はプロセス内 TTL Map で仮置きしてよい
+- `IReplyRepository` と Redis実装（`app:reply:*`）を本Planで追加する。
+  書込み失敗時は展開を続け、追従削除だけ諦める
   （[ADR 0016](../../../docs/adr/0016-redis-for-persistent-state.md)）
 
 ### 項目5: DI 配線
@@ -85,6 +89,9 @@ edge: blocked-by 0006
 - **対象**: `src/index.ts`
 - 全層を手動 DI で組み立てる。**ここだけが3層すべてを import してよい**
 - `SOURCE_CHAIN` に従って経路を並べる
+- Redisへ接続し、ban/blockをpreloadしてからメッセージ受付を有効にする。
+  接続またはpreload失敗時もDiscord接続自体は続けるが、既定の `deny` では
+  `AccessGate` をフェイルクローズさせ、`/readyz` を503、`/health`へRedis状態を出す
 
 ## 影響範囲
 
@@ -103,6 +110,11 @@ edge: blocked-by 0006
   スナップショットは使わない（リファクタのたびに壊れ、読まれなくなる）
 - 上限超過（gallery item 11件・embed 11件）で例外ではなくアサートエラーになること
 - 小説の抜粋テスト: 独自記法の除去と、`link_only` で抜粋が出ないこと
+- オーナー以外・ギルド内の `!owner/...` は無反応、DMの全コマンド返信は1900文字で分割
+- ban/block preload完了前・失敗時はURL検出/取得へ進まず、preload後の通常判定では
+  Redis往復が発生しないこと
+- Redis不通でもDiscord起動は続き、`/readyz` は503になること
+- reply map保存失敗でも展開が続き、保存成功時は `messageDelete` で返信を削除すること
 
 ## 破壊的変更の許容範囲
 
@@ -120,6 +132,10 @@ edge: blocked-by 0006
 - [ ] gallery item・embed の上限超過が未捕捉例外にならない
 - [ ] `suppressEmbeds` が権限不足で失敗しても展開が続行される
 - [ ] ハンドラ内の例外が client へ漏れない
+- [ ] オーナーDMの管理コマンドが動作し、非オーナー/ギルド内では無反応
+- [ ] ban/block preload失敗時にフェイルクローズし、成功後は通常判定でRedisへ往復しない
+- [ ] Redis不通でもBotは起動し、`/readyz` が503、`/health` がRedis状態を返す
+- [ ] reply mapがRedisへ24時間保持され、元メッセージ削除時に返信も削除される
 - [ ] うごイラが「うごイラ（静止画のみ表示）」と明示される
 - [ ] 実チャンネルで複数ページ作品が表示されることを目視確認 <!-- human-judgment -->
 

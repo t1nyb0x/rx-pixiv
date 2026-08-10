@@ -29,9 +29,12 @@ const nullableUrl = z
 
 const count = z.number().int().nonnegative().optional();
 
+/** 年齢区分は未知値を全年齢へ倒さない。仕様変更時は parse_error で安全に停止する。 */
+const xRestrict = z.union([z.literal(0), z.literal(1), z.literal(2)]);
+
 /** pixiv は「該当なし」を欠落ではなく null で返すことがある（実測: `maxXRestrict`）。 */
-const nullableInt = z
-  .union([z.number().int(), z.null()])
+const nullableXRestrict = z
+  .union([xRestrict, z.null()])
   .optional()
   .transform((v) => (v === null ? undefined : v));
 
@@ -73,7 +76,7 @@ export const ajaxIllustBodySchema = z.object({
   /** 0=イラスト / 1=マンガ / 2=うごイラ */
   illustType: z.number().int(),
   /** 0=全年齢 / 1=R-18 / 2=R-18G。年齢判定の一次情報 */
-  xRestrict: z.number().int(),
+  xRestrict,
   /** 0=AI 不使用 / 2=AI 使用 */
   aiType: z.number().int().optional(),
   pageCount: z.number().int().positive(),
@@ -118,7 +121,7 @@ export const ajaxNovelBodySchema = z.object({
   description: nullableText,
   createDate: nullableText,
   uploadDate: nullableText,
-  xRestrict: z.number().int(),
+  xRestrict,
   aiType: z.number().int().optional(),
   characterCount: count,
   wordCount: count,
@@ -154,7 +157,7 @@ const profileWorkEntry = z.object({
   title: z.string(),
   url: nullableUrl,
   illustType: z.number().int().optional(),
-  xRestrict: z.number().int().optional(),
+  xRestrict: xRestrict.optional(),
   aiType: z.number().int().optional(),
   pageCount: z.number().int().positive().optional(),
 });
@@ -188,9 +191,9 @@ export const ajaxNovelSeriesBodySchema = z.object({
   userId: idLike,
   userName: z.string(),
   caption: nullableText,
-  xRestrict: z.number().int(),
+  xRestrict,
   /** 配下エピソードの最大制限。**該当なしのとき `null` が入る**（欠落ではない） */
-  maxXRestrict: nullableInt,
+  maxXRestrict: nullableXRestrict,
   aiType: z.number().int().optional(),
   publishedContentCount: count,
   displaySeriesContentCount: count,

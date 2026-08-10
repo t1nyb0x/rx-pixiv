@@ -1,4 +1,5 @@
 import type { RedisClientType } from "redis";
+import { z } from "zod";
 
 import type { BanRecord, BanSubject, IBanRepository } from "#core/ports/IBanRepository";
 import type { BlockRecord, BlockTarget, IBlockRepository } from "#core/ports/IBlockRepository";
@@ -6,6 +7,25 @@ import type { CooldownSubject, ICooldownStore } from "#core/ports/ICooldownStore
 
 const BAN_INDEX = "app:ban:list";
 const BLOCK_INDEX = "app:block:list";
+
+const banRecordSchema = z.object({
+  subject: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("user"), id: z.string().min(1) }),
+    z.object({ kind: z.literal("guild"), id: z.string().min(1) }),
+  ]),
+  reason: z.string().optional(),
+  createdAt: z.string().min(1),
+  actorId: z.string().min(1),
+});
+
+const blockRecordSchema = z.object({
+  target: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("artwork"), id: z.string().min(1) }),
+    z.object({ kind: z.literal("user"), id: z.string().min(1) }),
+  ]),
+  reason: z.string().optional(),
+  createdAt: z.string().min(1),
+});
 
 /**
  * 禁止リスト（ADR 0016）。
@@ -25,19 +45,19 @@ export class RedisBanRepository implements IBanRepository {
 
   /** 起動時に一度だけ呼ぶ。読めなければ例外を投げ、呼び出し側が縮退を決める。 */
   public async preload(): Promise<void> {
+    // 再読込に失敗したとき古いcacheを「最新」として使わせない。
+    this.#loaded = false;
     const keys = await this.#client.sMembers(BAN_INDEX);
     // 起動時の一度きり。各キーは独立なので並列に取る。
     const entries = await Promise.all(
       keys.map(
         async (key) =>
-          [key, parseJson<BanRecord>(await this.#client.get(`app:ban:${key}`))] as const,
+          [key, parseBanRecord(await this.#client.get(`app:ban:${key}`), key)] as const,
       ),
     );
 
     this.#cache.clear();
-    for (const [key, record] of entries) {
-      if (record !== undefined) this.#cache.set(key, record);
-    }
+    for (const [key, record] of entries) this.#cache.set(key, record);
     this.#loaded = true;
   }
 
@@ -55,15 +75,28 @@ export class RedisBanRepository implements IBanRepository {
 
   public async save(record: BanRecord): Promise<void> {
     const key = banKey(record.subject);
-    await this.#client.set(`app:ban:${key}`, JSON.stringify(record));
-    await this.#client.sAdd(BAN_INDEX, key);
+    try {
+      await this.#client
+        .multi()
+        .set(`app:ban:${key}`, JSON.stringify(record))
+        .sAdd(BAN_INDEX, key)
+        .exec();
+    } catch (error) {
+      // commit済みか不明な応答喪失時に古いcacheで判定させない。
+      this.#loaded = false;
+      throw error;
+    }
     this.#cache.set(key, record);
   }
 
   public async delete(subject: BanSubject): Promise<boolean> {
     const key = banKey(subject);
-    await this.#client.del(`app:ban:${key}`);
-    await this.#client.sRem(BAN_INDEX, key);
+    try {
+      await this.#client.multi().del(`app:ban:${key}`).sRem(BAN_INDEX, key).exec();
+    } catch (error) {
+      this.#loaded = false;
+      throw error;
+    }
     return this.#cache.delete(key);
   }
 
@@ -87,18 +120,18 @@ export class RedisBlockRepository implements IBlockRepository {
   }
 
   public async preload(): Promise<void> {
+    // 再読込に失敗したとき古いcacheを「最新」として使わせない。
+    this.#loaded = false;
     const keys = await this.#client.sMembers(BLOCK_INDEX);
     const entries = await Promise.all(
       keys.map(
         async (key) =>
-          [key, parseJson<BlockRecord>(await this.#client.get(`app:block:${key}`))] as const,
+          [key, parseBlockRecord(await this.#client.get(`app:block:${key}`), key)] as const,
       ),
     );
 
     this.#cache.clear();
-    for (const [key, record] of entries) {
-      if (record !== undefined) this.#cache.set(key, record);
-    }
+    for (const [key, record] of entries) this.#cache.set(key, record);
     this.#loaded = true;
   }
 
@@ -114,15 +147,27 @@ export class RedisBlockRepository implements IBlockRepository {
 
   public async save(record: BlockRecord): Promise<void> {
     const key = blockKey(record.target);
-    await this.#client.set(`app:block:${key}`, JSON.stringify(record));
-    await this.#client.sAdd(BLOCK_INDEX, key);
+    try {
+      await this.#client
+        .multi()
+        .set(`app:block:${key}`, JSON.stringify(record))
+        .sAdd(BLOCK_INDEX, key)
+        .exec();
+    } catch (error) {
+      this.#loaded = false;
+      throw error;
+    }
     this.#cache.set(key, record);
   }
 
   public async delete(target: BlockTarget): Promise<boolean> {
     const key = blockKey(target);
-    await this.#client.del(`app:block:${key}`);
-    await this.#client.sRem(BLOCK_INDEX, key);
+    try {
+      await this.#client.multi().del(`app:block:${key}`).sRem(BLOCK_INDEX, key).exec();
+    } catch (error) {
+      this.#loaded = false;
+      throw error;
+    }
     return this.#cache.delete(key);
   }
 
@@ -154,13 +199,44 @@ export class RedisCooldownStore implements ICooldownStore {
   }
 }
 
-function parseJson<T>(raw: string | null): T | undefined {
-  if (raw === null) return undefined;
+function parseStored<T>(raw: string | null, schema: z.ZodType<T>, key: string): T {
+  if (raw === null) throw new Error(`indexed Redis record is missing: ${key}`);
+
+  let parsedJson: unknown;
   try {
-    return JSON.parse(raw) as T;
+    parsedJson = JSON.parse(raw);
   } catch {
-    return undefined;
+    throw new Error(`indexed Redis record is malformed: ${key}`);
   }
+
+  const parsed = schema.safeParse(parsedJson);
+  if (!parsed.success) throw new Error(`indexed Redis record has an invalid shape: ${key}`);
+  return parsed.data;
+}
+
+function parseBanRecord(raw: string | null, key: string): BanRecord {
+  const value = parseStored(raw, banRecordSchema, key);
+  if (banKey(value.subject) !== key) {
+    throw new Error(`indexed Redis record identity does not match its key: ${key}`);
+  }
+  return value.reason === undefined
+    ? { subject: value.subject, createdAt: value.createdAt, actorId: value.actorId }
+    : {
+        subject: value.subject,
+        reason: value.reason,
+        createdAt: value.createdAt,
+        actorId: value.actorId,
+      };
+}
+
+function parseBlockRecord(raw: string | null, key: string): BlockRecord {
+  const value = parseStored(raw, blockRecordSchema, key);
+  if (blockKey(value.target) !== key) {
+    throw new Error(`indexed Redis record identity does not match its key: ${key}`);
+  }
+  return value.reason === undefined
+    ? { target: value.target, createdAt: value.createdAt }
+    : { target: value.target, reason: value.reason, createdAt: value.createdAt };
 }
 
 function banKey(subject: BanSubject): string {

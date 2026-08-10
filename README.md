@@ -4,10 +4,10 @@ Discord に貼られた **pixiv の URL を読める形に展開する Bot**。
 
 `rx-twitter`（Twitter/X）、`rx-instagram`（Instagram）に続く3本目。
 
-> **状態: コア実装中（URL 検出・ドメインモデル実装済み）**
-> 設定検証・ロガー・ヘルスサーバ・Discord 接続、pixiv URL の検出・正規化、ドメインモデル、
-> HTTP timeout/retry・上流保護・プロセス内キャッシュ基盤を実装済みです。
-> Discord メッセージへの配線、作品取得、年齢制限判定、管理コマンドは後続 Plan で実装します。
+> **状態: コア機能実装済み・Discord 配線前**
+> 作品取得の多段フォールバック、年齢制限判定、メディア選択、管理サービス、Redis 永続化まで
+> 実装済みです。`messageCreate`、レンダラ、実行時DIは未実装のため、BotとしてのURL展開と
+> 管理コマンドはまだ動作しません。
 > 進捗は [TODO.md](TODO.md) を参照してください。
 
 ---
@@ -75,7 +75,7 @@ pixiv が返す:  https://i.pximg.net/img-master/.../xxx_p0_master1200.jpg
 埋め込みも自然に見えなくなります。
 
 - 画像プロキシの向き先は `PXIMG_PROXY_BASE_URL` で変更できます（自前ホストも可能）
-- **原寸画像（`original`）は使いません**。`regular`（長辺1200px）のみ
+- **原寸画像（`original`）は使いません**。`regular` を優先し、`small` / `thumb` へ縮退します
 - **1作品あたり既定4枚**まで。200ページの作品でも全ページを展開しません
 - **必ず pixiv の作品ページへのリンクを併記します**
 - 権利者からの削除要請には `!owner/block` による展開拒否で応じます

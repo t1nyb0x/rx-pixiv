@@ -1,9 +1,9 @@
 # Plan 0011: 管理コマンド・濫用対策・Redis 永続化
 
-## 実装状況: 一部完了（残り: Redis 実装と discord.js 配線）
+## 実装状況: 一部完了（残り: runtime配線・返信map・Discord handler統合）
 
-<!-- 純粋部分（ゲート順序・コマンド解釈）とインメモリ実装は完了。
-     Redis 実装（項目1・2・3 の一部）と OwnerCommandHandler の discord.js 配線が残り。 -->
+<!-- AccessGate・コマンド解釈/実行、インメモリ実装、Redis接続とban/block/cooldownは完了。
+     index.tsでの接続/preload/health配線、reply map、Discord handler統合が残る。 -->
 
 owner_feedback: 不要
 
@@ -30,16 +30,17 @@ edge: blocked-by 0002
 
 ## 現状の挙動
 
-未実装。設計フェーズの当初計画には管理面が**一切無かった**。
-サーバーから抜けるにも環境変数を変えて再デプロイするしかない状態だった。
+`AccessGate`、管理コマンドの解釈・実行サービス、インメモリ実装、Redis接続と
+ban/block/cooldownリポジトリは実装済み。ただし `src/index.ts` へ未配線のため、
+Bot上の管理コマンド・永続ゲート・Redis healthはまだ動作しない。
 
 ## 変更内容（項目・フェーズ）
 
 ### 項目1: Redis 基盤
 
 - **対象**: `src/infrastructure/redis/client.ts`、`docker-compose.yml`
-- `redis` v6 クライアント。接続・再接続・切断検知
-- compose に `redis:8-alpine`（`--appendonly yes`）を追加
+- `redis` v5 クライアント。接続・再接続・切断検知
+- Plan 0002 で追加済みの `redis:8-alpine`（`--appendonly yes`）を利用
 - **起動時に接続できなくても起動は続行**する（Discord には繋ぐ）。`/readyz` は 503 を返す
 - `/health` に Redis の状態を出す
 
@@ -47,8 +48,8 @@ edge: blocked-by 0002
 
 - **対象**: `src/core/ports/{IBanRepository,IBlockRepository}.ts`、
   `src/infrastructure/redis/Redis*Repository.ts`
-- 禁止（`app:ban:*`）・展開拒否（`app:block:*`）・返信マップ（`app:reply:*`）・
-  クールダウン（`app:cooldown:*`）
+- 禁止（`app:ban:*`）・展開拒否（`app:block:*`）・クールダウン（`app:cooldown:*`）を実装済み。
+  返信マップ（`app:reply:*`）は Plan 0007 の返信追跡と合わせて実装する
 - **禁止と展開拒否は起動時に全件プリロード**し、変更時に更新する。
   毎メッセージで Redis に往復しない
 - ポートは `core/ports/` に置き、ファイル方式へ戻せる余地を残す
@@ -95,8 +96,8 @@ edge: blocked-by 0002
 `src/core/ports/`（ポート2つ追加）、`docker-compose.yml`、`.env.example`、
 Discord の intent 設定。
 
-Plan 0007 の `MessageHandler` と実装が重なるため、**Plan 0007 より先に着手するか、
-Plan 0007 の完了後に順序を差し込む**かを実装時に判断する。
+残る実行時DI・reply map・Discord handlerは、同じ境界を触る
+[Plan 0007](0007-rendering-and-wiring.md) に統合して完了させる。
 
 ## テスト方針
 
@@ -111,7 +112,7 @@ Plan 0007 の完了後に順序を差し込む**かを実装時に判断する�
 
 ## 破壊的変更の許容範囲
 
-なし。ただし `OWNER_USER_ID` と `REDIS_URL` が必須環境変数に加わる。
+なし。`OWNER_USER_ID` は既存の必須設定、`REDIS_URL` は既定値付きの任意設定。
 
 ## 要オーナー確認
 

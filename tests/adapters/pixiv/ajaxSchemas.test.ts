@@ -87,4 +87,10 @@ describe("ajax schemas", () => {
     delete raw.body.xRestrict;
     expect(() => ajaxIllustBodySchema.parse(raw.body)).toThrow(/xRestrict/);
   });
+
+  it("rejects an unknown xRestrict value instead of treating it as all-ages", () => {
+    const raw = fixture("illust-single") as { body: Record<string, unknown> };
+    raw.body.xRestrict = 99;
+    expect(() => ajaxIllustBodySchema.parse(raw.body)).toThrow(/xRestrict/);
+  });
 });

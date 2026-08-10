@@ -57,6 +57,9 @@ export abstract class BasePixivSource implements IPixivSource {
       signal: context.signal,
     });
     if (!response.ok) return response;
+    if (response.value.status === 401 || response.value.status === 403) {
+      return err({ kind: "auth_required" });
+    }
     return ok(response.value.body);
   }
 
@@ -81,6 +84,9 @@ export abstract class BasePixivSource implements IPixivSource {
 
     const response = await this.httpClient.request(request);
     if (!response.ok) return response;
+    if (response.value.status === 401 || response.value.status === 403) {
+      return err({ kind: "auth_required" });
+    }
 
     let raw: unknown;
     try {

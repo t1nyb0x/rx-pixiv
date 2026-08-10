@@ -142,7 +142,7 @@ src/
 │   │   ├── CircuitBreaker.ts
 │   │   ├── CircuitProtectedSource.ts # source取得・検証・写像を経路別に保護
 │   │   ├── HealthServer.ts           # Hono: /healthz /readyz /health /metrics
-│   │   └── PximgFetcher.ts           # 第3段フォールバック時のみ使う（既定は無効）
+│   │   └── PximgFetcher.ts           # 将来の任意経路（v1では未実装）
 │   ├── cache/{LruTtlCache,WorkCache}.ts
 │   ├── redis/
 │   │   ├── client.ts                 # 接続・再接続・縮退
@@ -150,7 +150,7 @@ src/
 │   │   ├── RedisBlockRepository.ts   # IBlockRepository の実装
 │   │   ├── RedisReplyRepository.ts
 │   │   └── RedisCooldownStore.ts
-│   ├── session/PixivSession.ts       # 任意の PHPSESSID 保持＋有効性プローブ
+│   ├── session/PixivSession.ts       # 将来候補（v1では資格情報を受け付けず未実装）
 │   └── metrics/Counters.ts
 └── utils/{logger,concurrency,html}.ts
 ```
@@ -457,7 +457,6 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 | `SENSITIVE_IN_SFW` | `spoiler` | `spoiler` \| `link_only` \| `skip` |
 | `UNKNOWN_RATING_SFW` | `skip` | `skip` \| `link_only` |
 | `ALLOW_NSFW_IN_DM` | `false` | |
-| `PIXIV_PHPSESSID` | 未設定 | 任意・秘匿・ログでマスク |
 | `FETCH_TOTAL_BUDGET_MS` / `SOURCE_TIMEOUT_MS` | `8000` / `3000` | |
 | `PIXIV_RPS` | `1` | |
 | `CIRCUIT_FAILURE_THRESHOLD` / `CIRCUIT_OPEN_MS` | `5` / `120000` | 60秒内の連続失敗数 / 開状態の時間 |
@@ -474,6 +473,7 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 ## 11. 可観測性
 
 - **ログ**: pino、JSON を stdout へ。`redact` で cookie と PHPSESSID を無条件にマスク。
+  v1 は PHPSESSID を設定として受け付けず、このマスクは誤投入への多層防御として残す。
   `messageCreate` ごとに `traceId` を発番し、`{traceId, guildId, channelId, workId, source}`
   を束ねた子ロガーで通す。**メッセージ本文は絶対に出さない**
 - **メトリクス**: `/metrics` に Prometheus テキスト形式（自前実装、数十行）

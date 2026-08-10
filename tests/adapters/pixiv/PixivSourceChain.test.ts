@@ -122,6 +122,34 @@ describe("PixivSourceChain", () => {
     expect(work.pagesTruncated).toBe(true);
   });
 
+  it("preserves the larger page count when a later source supplies metadata", async () => {
+    const phixiv = new StubSource(
+      "phixiv",
+      ok(
+        illust({
+          source: "phixiv",
+          rating: rating({ confidence: "inferred" }),
+          pages: [{ page: 0, urls: { regular: "https://phixiv.net/i/x.jpg" } }],
+          pageCount: 1,
+        }),
+      ),
+    );
+    const ajax = new StubSource(
+      "ajax",
+      ok(illust({ pages: [], pageCount: 5, pagesTruncated: true, partial: true })),
+    );
+
+    const result = await new PixivSourceChain({ sources: [phixiv, ajax] }).fetch(
+      artwork,
+      context(),
+    );
+    const work = (result as { value: IllustWork }).value;
+
+    expect(work.pageCount).toBe(5);
+    expect(work.pagesTruncated).toBe(true);
+    expect(work.partial).toBe(true);
+  });
+
   it("never lets a later source loosen the rating", async () => {
     const ajax = new StubSource(
       "ajax",
@@ -168,9 +196,13 @@ describe("PixivSourceChain", () => {
     });
 
     const chain = new PixivSourceChain({ sources: [ajax, phixiv] });
-    await chain.fetch(artwork, context());
+    const result = await chain.fetch(artwork, context());
 
     expect(seen[0]).toMatchObject({ level: "r18", confidence: "inferred" });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { rating: { level: "r18", confidence: "inferred" } },
+    });
   });
 
   it("skips sources that do not support the ref", async () => {

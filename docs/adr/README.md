@@ -11,7 +11,7 @@ rx-pixiv の設計判断の記録。書式は `rx-twitter` の ADR に揃える
 | [0004](0004-result-error-model.md) | エラーモデルに判別可能な Result 型を採用する | Accepted |
 | [0005](0005-media-delivery.md) | 画像は Bot が取得して Discord 添付として再配信する | ~~Superseded by 0014~~ |
 | [0006](0006-age-restricted-content.md) | 年齢制限コンテンツはフェイルクローズで扱う | Accepted |
-| [0007](0007-pixiv-session-optional.md) | pixiv 認証（PHPSESSID）はオプション扱いとする | **Proposed** |
+| [0007](0007-pixiv-session-optional.md) | v1ではpixiv認証を実装しない（将来は任意） | Accepted |
 | [0008](0008-in-memory-cache.md) | キャッシュはインメモリ TTL+LRU とし Redis を導入しない | ~~Superseded by 0016~~ |
 | [0009](0009-components-v2-renderer.md) | レンダラは Components V2 を既定とする | Accepted |
 | [0010](0010-suppress-not-delete.md) | 元メッセージは削除せず埋め込み抑制のみ行う | Accepted |

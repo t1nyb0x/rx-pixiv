@@ -1,9 +1,9 @@
 # Plan 0005: Ajax ソースとフォールバック連鎖（メタデータのみ）
 
-## 実装状況: 一部完了（残り: 項目6 `PixivSession` の実装可否判断）
+## 実装状況: 完了（2026-08-11）
 
-<!-- フェーズ0・項目1〜5 は完了。項目6 はスパイクの結果
-     「安全性には不要」と判明したため、実装するかどうかがオーナー判断（要件 Q-3）。 -->
+<!-- フェーズ0・項目1〜5 は完了。項目6 はスパイクと phixiv 再実測の結果、
+     v1 では実装しないと決定した。資格情報なしでも安全性と単ページ表示が成立する。 -->
 
 owner_feedback: 済
 
@@ -29,7 +29,8 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 
 ## 現状の挙動
 
-未実装。
+Ajax / phixiv / OGP source、補完マージする取得連鎖、短縮URL解決、キャッシュ付き作品解決を実装済み。
+Botの実行経路へのDIとDiscordメッセージ処理は Plan 0007 で行う。
 
 ## 変更内容（項目・フェーズ）
 
@@ -64,11 +65,12 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
   - HTTP ステータス、`error` / `message` の値、メタデータだけでも返るか
   - **`auth_required` を `unavailable` と区別できるか**
 - phixiv が R-18 のメタデータ・画像を返すか
-- `/ajax/illust/{id}/pages` の多ページ応答と `master1200` の実サイズ分布
+- `/ajax/illust/{id}/pages` の多ページ応答を確認。`master1200` の実サイズ分布は
+  v1が枚数・URL変種で制限し画像バイトを扱わないため測定対象外とした
 - 小説シリーズのメタデータ取得に使える Ajax endpoint と応答形を実測し、一次取得経路を確定する
-- pixiv のレート制限の実閾値（何 req/min で 429 が返るか）
-- **`sl`（sanity level）の値域と「センシティブ」の閾値**。
-  現在の `sl >= 4` は**未検証の仮置き**である（要件 Q-5）
+- pixiv の429実閾値は、上流へ意図的な負荷を掛けるため測定しない。
+  既定1 rps・1回retry・サーキットブレーカで保守的に運用する
+- **`sl`（sanity level）は全年齢でも6だったため判定に使わない**（要件 Q-5 解消）
 - ~~結果を ADR 0007 の決定ログに記録し Status を確定~~ → **完了**
 
 ### 項目1: スキーマと写像
@@ -127,8 +129,10 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 
 ### 項目6: 任意の pixiv セッション
 
-- **対象**: `src/infrastructure/session/PixivSession.ts`
-- フェーズ0 の結果次第で実装するか決める。実装する場合:
+- **v1では実装しない。** 無認証でも年齢判定とphixiv経由のR-18単ページ表示が成立し、
+  完全な資格情報を扱うリスクに見合う必須利益がないため
+- 将来、phixiv非依存またはR-18複数ページが必要になった場合だけ、
+  `src/infrastructure/session/PixivSession.ts` を別Planで再検討する。実装する場合:
   - Cookie は **`www.pixiv.net` にのみ**付与する
   - 起動時と1時間ごとに有効性プローブ。失効時は警告を出して無認証モードへ縮退
   - 認証時はレート制限をより厳しくする
@@ -136,14 +140,13 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 ## 影響範囲
 
 `src/adapters/pixiv/` の新規追加と `core/services/WorkResolver.ts`。
-フェーズ0 の結果次第で ADR 0007 の Status が変わり、
-Plan 0006 の NSFW ゲートの縮退経路の記述に影響する。
+フェーズ0 の結果を ADR 0007 と Plan 0006 の縮退経路へ反映済み。
 
 ## テスト方針
 
 - 実 API から採取した fixture（`tests/fixtures/ajax/*.json`）に対する写像テスト。
   `illust-single` / `illust-manga` / `illust-ugoira` / `novel` / `novel-series` / `user` /
-  `error-notfound` / `error-authrequired` を用意する
+  `error-notfound` を用意する。実測で発生しなかった `auth_required` は連鎖の合成テストで扱う
 - **モックはポート（`IHttpClient`）に対して行う**。`vi.mock("undici")` はしない
 - 連鎖のテスト: 各エラー種別で「打ち切るか続行するか」を全て検証する
 - 年齢ヒントが後段で**緩められないこと**を明示的にテストする
@@ -156,14 +159,13 @@ Plan 0006 の NSFW ゲートの縮退経路の記述に影響する。
 ## 要オーナー確認
 
 - ~~フェーズ0 の結果を見て ADR 0007 をどちらに倒すか~~ → **Accepted で確定**
-- `PIXIV_PHPSESSID` を実際に供給するか（アカウント停止リスクの受容）。
-  **供給しなくても安全性は損なわれない**。年齢制限チャンネルで R-18 の**画像**を
-  出したい場合のみ必要（要件 Q-3）
+- ~~`PIXIV_PHPSESSID` を実際に供給するか~~ → **v1では供給せず、PixivSessionも実装しない。**
+  安全性と単ページ表示は無認証で成立する。phixiv非依存・R-18複数ページが必要になった時だけ再検討する
 
 ## 完了条件
 
 - [x] フェーズ0 のスパイク結果が ADR 0007 の Context と決定ログに記録され、Status が確定している
-- [ ] fixture から illust / manga / novel / novel series / user が正しく `PixivWork` へ写像される
+- [x] fixture から illust / manga / novel / novel series / user が正しく `PixivWork` へ写像される
 - [x] `not_found` で連鎖が打ち切られ、他のエラーでは続行することがテストで確認できる
 - [x] `auth_required` が `ratingHint = r18/inferred` を立て、**後段で緩められない**
 - [x] `/pages` の失敗時に**画像ゼロ枚**のメタデータのみで返り `pagesTruncated: true` になる
@@ -174,7 +176,7 @@ Plan 0006 の NSFW ゲートの縮退経路の記述に影響する。
 - [x] 総予算超過時に次の経路を起動しない
 - [x] `vi.mock("undici")` を使っていない（ポートに対してモックしている）
 - [x] **補完マージ**: R-18 で Ajax の年齢区分と phixiv の画像が両方使われる（ADR 0003 に追記）
-- [ ] 項目6 `PixivSession` を実装するかの判断（要件 Q-3。**安全性には不要**）
+- [x] 項目6 `PixivSession` はv1で実装しないと決定し、資格情報なしの経路を既定にした
 
 ## AI 実装時間見積もり
 

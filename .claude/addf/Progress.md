@@ -87,7 +87,17 @@
 
 ## タスク
 
-### 現在のタスク: Plan 0005 Ajax ソースとフォールバック連鎖
+### 現在のタスク: Plan 0007 Discord レンダリングと messageCreate 配線
+
+#### サブタスクチェックリスト
+
+- [x] Plan 0007と統合対象のPlan 0011残作業を読み、実装境界を同期
+- [ ] `MessageComposer` とレンダラ2種
+- [ ] `OwnerCommandHandler` / `MessageHandler` とゲート順序
+- [ ] reply map、Redis connect/preload/health、全層DI
+- [ ] 統合テスト・目視確認・品質ゲート・レビュー
+
+### 直前のタスク（完了）: Plan 0005 Ajax ソースとフォールバック連鎖
 
 #### サブタスクチェックリスト
 
@@ -95,7 +105,7 @@
 - [x] 無認証で R-18 の `/ajax/illust/{id}` を叩き応答を記録 → **200・`xRestrict:1`・`aiType:2`**
 - [x] `auth_required` と `unavailable` の区別 → **そもそも `auth_required` が発生しない**
 - [x] `sl` の実測 → **全年齢でも 6。判定に使えない**（要件 Q-5 は否定的結論で解消）
-- [x] phixiv が R-18 を返すか → **og:image 無し。代替供給源にならない**
+- [x] phixiv が R-18 を返すか → **bot UA なら og:image あり。無認証の代替供給源になる**
 - [x] `/pages` の挙動 → **R-18 では 404**（作品は実在するので `not_found` に写像禁止）
 - [x] `body.urls` → **全年齢でも常に null**。画像 URL は `/pages` からのみ
 - [x] ADR 0007 を **Accepted** で確定、ADR 0003・0006・要件・Plan 0005/0006 に反映
@@ -117,8 +127,8 @@
 - [x] `shortlink.ts`（pixiv.me 解決）
 - [x] `WorkResolver`（キャッシュ→連鎖→キャッシュ）
 
-**項目6: 任意の pixiv セッション**（スパイク結果次第で実装可否を決める）
-- [ ] `PixivSession`（実装する場合のみ・**安全性には不要と判明済み**）
+**項目6: 任意の pixiv セッション**
+- [x] v1 では `PIXIV_PHPSESSID` を受け付けず、`PixivSession` も実装しないと決定
 
 ### Plan 0011（管理コマンド・濫用対策・Redis）— 一部完了
 - [x] `AccessGate`（ゲート順序・フェイルクローズ）
@@ -126,13 +136,15 @@
 - [x] `ICooldownStore` ポートとインメモリ実装3種
 - [x] Redis 実装（`redis@5` を追加。接続・リポジトリ2種・クールダウン）
 - [x] `OwnerCommandService`（コマンド実行・discord.js 非依存）
-- [ ] `OwnerCommandHandler`（discord.js の messageCreate への配線 — Plan 0007 と同時に行う）
+- [ ] Redis connect/preload と health state への実行時DI
+- [ ] コマンド結果の reply map
+- [ ] `OwnerCommandHandler` / `MessageHandler`（Plan 0007 と同時に行う）
 
 **仕上げ**
 - [x] `.env.example` に Plan 0005 で増える変数を追加
 - [x] `tests/live/` の上流ドリフト検知テスト（`RUN_LIVE_API_TESTS=1` でのみ実行）
-- [ ] 品質ゲート（lint / fmt:check / typecheck / test:coverage / build）
-- [ ] コードレビュー・知見記録・コミット
+- [x] 品質ゲート（lint / fmt:check / typecheck / test:coverage / build）
+- [x] コードレビュー・文書レビュー・コントリビューション確認・知見記録
 
 #### 日記
 
@@ -566,8 +578,23 @@ Plan 0007（レンダリングと messageCreate 配線）。ここで初めて B
   **呼び出し側から区別する必要が無い**（どちらも無反応）ので許容している。
   ログには区別を残したくなるかもしれない
 
+
+##### 2026-08-11 — 未push実装の品質レビューと Plan 0005 完了
+
+**やったこと**:
+11コミット分の全品質ゲートを回し、コード・文書・ADDF分離レビューを実施した。
+年齢判定の不正値フェイルオープン、`auth_required` ヒント消失、shortlink SSRF、
+Redisの非原子的更新と壊れたpreloadの黙殺を修正。追加の警告も、レスポンス容量上限、
+ページ数合成、出力URL検証、block種別分離、上限付きメモリストアまで対応した。
+v1では `PIXIV_PHPSESSID` と `PixivSession` を扱わないと確定し、Plan 0005を完了へ同期した。
+
+**今の見立て**:
+Plan 0005・0006は完了。Plan 0011はDiscord非依存部分まで完了し、残る実行時DI・reply map・
+handlerはPlan 0007と同じ配線境界にある。次はPlan 0007を開始できる。
+
+**次の自分へ**:
+Plan 0007の関連knowhowと直近の日記を読み、`MessageHandler` のゲート順序とRedis preload完了前の
+フェイルクローズを最初に統合テストへ落とすこと。
+
 **気になっていること**:
-- スパイクで「WebFetch の観測 → curl で再検証」という二段構えが効いた。
-  ヘッダを制御できないツールの結果だけで設計判断をしないこと。knowhow に残す価値がある
-- 要件 Q-3（PHPSESSID を実際に供給するか）は未決のまま。ただし**急がない**。
-  供給しなくても安全性は損なわれず、画像が出ないだけ
+取得経路別タイムアウトは型で設定可能にしたが、実行時DIはPlan 0007で初めて行う。

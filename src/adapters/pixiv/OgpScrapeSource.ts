@@ -125,7 +125,8 @@ export function usablePreviewUrl(url: string | undefined): string | undefined {
  *
  * **この経路の推定は最も弱い。** 「プレビューがある＝全年齢」は
  * 観測されたサンプル数が少なく、pixiv の仕様変更で崩れうる。
- * したがって `confidence` は常に `inferred` に留め、`authoritative` を名乗らない。
+ * 制限シグナルは `inferred`、シグナルが無い場合は `unknown` とする。
+ * 「見つからない」を全年齢の証拠として扱わない。
  * 一次経路（Ajax）が生きている限り、この推定が最終判断になることはない。
  */
 export function inferRating(
@@ -142,7 +143,7 @@ export function inferRating(
     level: restricted ? "r18" : "all",
     sensitive: false,
     ai: "unknown",
-    confidence: "inferred",
+    confidence: restricted ? "inferred" : "unknown",
   };
 }
 

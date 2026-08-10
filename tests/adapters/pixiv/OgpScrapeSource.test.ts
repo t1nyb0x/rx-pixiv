@@ -69,8 +69,8 @@ describe("OgpScrapeSource", () => {
     expect(work.author.name).not.toBe("");
     expect(work.pages[0]?.urls.regular).toContain("embed.pixiv.net");
     expect(work.rating.level).toBe("all");
-    // 一次経路ではないので権威は名乗らない。
-    expect(work.rating.confidence).toBe("inferred");
+    // 制限シグナルが無いことを全年齢の証拠にはしない。
+    expect(work.rating.confidence).toBe("unknown");
   });
 
   it("infers r18 when pixiv substitutes its logo for the preview", async () => {
@@ -152,12 +152,12 @@ describe("rating inference", () => {
     });
     const rating = inferRating(m, "https://embed.pixiv.net/decorate.php?illust_id=1");
     expect(rating.level).toBe("all");
-    expect(rating.confidence).toBe("inferred");
+    expect(rating.confidence).toBe("unknown");
   });
 
   it("never claims authority", () => {
     const m = meta({ "twitter:card": "summary_large_image" });
-    expect(inferRating(m, "https://embed.pixiv.net/x").confidence).toBe("inferred");
+    expect(inferRating(m, "https://embed.pixiv.net/x").confidence).toBe("unknown");
   });
 });
 

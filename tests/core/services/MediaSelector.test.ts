@@ -54,6 +54,16 @@ describe("selectMedia", () => {
     expect(result.urls.length).toBeLessThanOrEqual(10);
   });
 
+  it.each([11, Number.POSITIVE_INFINITY, Number.NaN])(
+    "clamps an invalid public hard limit (%s) to Discord's limit",
+    (hardLimit) => {
+      const manyPages = Array.from({ length: 20 }, (_, index) => page(index));
+      expect(selectMedia(manyPages, 20, identity, { maxPages: 20, hardLimit }).urls).toHaveLength(
+        10,
+      );
+    },
+  );
+
   it("keeps what it could resolve when some pages fail to rewrite", () => {
     // 部分失敗を捨てない（ADR 0003 と同じ方針）。
     const mixed = {

@@ -40,12 +40,6 @@ describe("parseEnv", () => {
     expect(env.ALLOW_NSFW_IN_DM).toBe(true);
   });
 
-  it("treats an empty optional session as unset", () => {
-    const env = parseEnv({ ...required, PIXIV_PHPSESSID: "" });
-
-    expect(env.PIXIV_PHPSESSID).toBeUndefined();
-  });
-
   it("aggregates missing and invalid variables without exposing values", () => {
     const error = captureError(() =>
       parseEnv({ DISCORD_TOKEN: "", OWNER_USER_ID: "secret-invalid-owner", HEALTH_PORT: "70000" }),
@@ -70,6 +64,12 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...required, REDIS_URL: "https://redis.example" })).toThrow(
       EnvValidationError,
     );
+    expect(() =>
+      parseEnv({ ...required, PXIMG_PROXY_BASE_URL: "https://user:secret@proxy.example/i" }),
+    ).toThrow(EnvValidationError);
+    expect(() =>
+      parseEnv({ ...required, PXIMG_PROXY_BASE_URL: "https://proxy.example/i?token=secret" }),
+    ).toThrow(EnvValidationError);
     expect(() => parseEnv({ ...required, MAX_URLS_PER_MESSAGE: "4" })).toThrow(EnvValidationError);
     expect(() => parseEnv({ ...required, MAX_PAGES_HARD: "11" })).toThrow(EnvValidationError);
     expect(() => parseEnv({ ...required, MAX_PAGES_DEFAULT: "5", MAX_PAGES_HARD: "4" })).toThrow(

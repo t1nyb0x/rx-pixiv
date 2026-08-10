@@ -1,3 +1,4 @@
+import { NODE_TIMER_MAX_MS } from "#config/constants";
 import type { FetchError } from "#core/models/errors";
 import type { PixivRef } from "#core/models/PixivRef";
 import type { PixivWork } from "#core/models/PixivWork";
@@ -37,6 +38,14 @@ export class WorkResolver {
     this.#cache = options.cache;
     this.#shortlinkResolver = options.shortlinkResolver;
     this.#totalBudgetMs = options.totalBudgetMs;
+    if (
+      this.#totalBudgetMs !== undefined &&
+      (!Number.isSafeInteger(this.#totalBudgetMs) ||
+        this.#totalBudgetMs <= 0 ||
+        this.#totalBudgetMs > NODE_TIMER_MAX_MS)
+    ) {
+      throw new RangeError(`totalBudgetMs must be an integer between 1 and ${NODE_TIMER_MAX_MS}`);
+    }
   }
 
   public async resolve(ref: PixivRef, signal: AbortSignal): Promise<Result<PixivWork, FetchError>> {

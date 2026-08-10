@@ -145,6 +145,21 @@ describe("AccessGate.isBlocked", () => {
     expect(await gateWith({ blockRepository: blocks }).isBlocked(userRef)).toBe(true);
   });
 
+  it.each(["novel", "novel_series"] as const)(
+    "does not apply an artwork block to a %s with the same id",
+    async (kind) => {
+      const blocks = new MemoryBlockRepository();
+      await blocks.save({ target: { kind: "artwork", id: "42" }, createdAt: "now" });
+      expect(
+        await gateWith({ blockRepository: blocks }).isBlocked({
+          kind,
+          id: "42",
+          canonicalUrl: "x",
+        }),
+      ).toBe(false);
+    },
+  );
+
   it("allows anything not on the list", async () => {
     expect(await gateWith().isBlocked(artwork)).toBe(false);
   });

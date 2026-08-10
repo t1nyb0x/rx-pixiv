@@ -18,7 +18,7 @@ function fixtureText(name: string): string {
   return readFileSync(fileURLToPath(url), "utf8");
 }
 
-type Route = string | FetchError;
+type Route = string | FetchError | HttpResponse;
 
 /**
  * `IHttpClient` ポートに対するフェイク（Plan 0005 テスト方針）。
@@ -35,7 +35,9 @@ class FakeHttpClient implements IHttpClient {
     if (match === undefined) return Promise.resolve(err({ kind: "network", cause: "no route" }));
 
     const [, route] = match;
-    if (typeof route !== "string") return Promise.resolve(err(route));
+    if (typeof route !== "string") {
+      return Promise.resolve("body" in route ? ok(route) : err(route));
+    }
     return Promise.resolve(ok({ status: 200, headers: {}, body: route }));
   }
 }
@@ -149,6 +151,16 @@ describe("AjaxPixivSource", () => {
     expect(result).toEqual(err({ kind: "not_found" }));
     // 作品が無いと分かった時点で /pages を叩かない。
     expect(http.calls.some((c) => c.endsWith("/pages"))).toBe(false);
+  });
+
+  it.each([401, 403])("maps HTTP %i to auth_required", async (status) => {
+    const { source } = sourceWith({
+      "/illust/1": { status, headers: {}, body: '{"error":"restricted"}' },
+    });
+
+    await expect(source.fetch(artwork("1"), context())).resolves.toEqual(
+      err({ kind: "auth_required" }),
+    );
   });
 
   it.each([

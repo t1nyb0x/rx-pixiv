@@ -1,3 +1,5 @@
+import { escalateRating } from "#core/models/ContentRating";
+import { NODE_TIMER_MAX_MS } from "#config/constants";
 import type { FetchError } from "#core/models/errors";
 import type { PixivRef } from "#core/models/PixivRef";
 import { mergeWorks, type PixivWork, type SourceName } from "#core/models/PixivWork";
@@ -7,7 +9,7 @@ import type { FetchContext, IPixivSource, SourceCapabilities } from "#core/ports
 export interface PixivSourceChainOptions {
   readonly sources: readonly IPixivSource[];
   /** 1経路あたりの上限。総予算とあわせて `AbortSignal.any` で打ち切る。 */
-  readonly sourceTimeoutMs?: number;
+  readonly sourceTimeoutMs?: number | Partial<Readonly<Record<SourceName, number>>>;
   readonly onSourceResult?: (event: SourceAttempt) => void;
 }
 
@@ -29,12 +31,13 @@ export class PixivSourceChain implements IPixivSource {
   public readonly name: SourceName = "ajax";
 
   readonly #sources: readonly IPixivSource[];
-  readonly #sourceTimeoutMs: number | undefined;
+  readonly #sourceTimeoutMs: number | Partial<Readonly<Record<SourceName, number>>> | undefined;
   readonly #onSourceResult: ((event: SourceAttempt) => void) | undefined;
 
   public constructor(options: PixivSourceChainOptions) {
     this.#sources = options.sources;
-    this.#sourceTimeoutMs = options.sourceTimeoutMs;
+    this.#sourceTimeoutMs = normalizeSourceTimeouts(options.sourceTimeoutMs);
+    for (const timeout of timeoutValues(this.#sourceTimeoutMs)) validateTimeout(timeout);
     this.#onSourceResult = options.onSourceResult;
   }
 
@@ -72,14 +75,14 @@ export class PixivSourceChain implements IPixivSource {
       // 総予算が尽きていれば次の経路を起動しない（ADR 0003）。
       if (context.signal.aborted) {
         this.#onSourceResult?.({ source: source.name, outcome: "skipped" });
-        break;
+        return accumulated === undefined ? err({ kind: "timeout" }) : ok(accumulated);
       }
 
       // 逐次であることがこの連鎖の本質である。前段の結果（年齢ヒント・蓄積した作品）が
       // 次段の入力になり、「十分」になれば後段を叩かない。並列化すると
       // 打ち切りが効かず、上流への不要なリクエストが増える。
       // eslint-disable-next-line no-await-in-loop
-      const result = await source.fetch(ref, this.#contextFor(context, ratingHint));
+      const result = await source.fetch(ref, this.#contextFor(context, ratingHint, source.name));
 
       if (!result.ok) {
         lastError = result.error;
@@ -103,8 +106,11 @@ export class PixivSourceChain implements IPixivSource {
       }
 
       this.#onSourceResult?.({ source: source.name, outcome: "success" });
-      accumulated =
-        accumulated === undefined ? result.value : mergeWorks(accumulated, result.value);
+      const hinted =
+        ratingHint === undefined
+          ? result.value
+          : { ...result.value, rating: escalateRating(result.value.rating, ratingHint) };
+      accumulated = accumulated === undefined ? hinted : mergeWorks(accumulated, hinted);
       ratingHint = accumulated.rating;
 
       if (isSufficient(accumulated)) break;
@@ -113,13 +119,45 @@ export class PixivSourceChain implements IPixivSource {
     return accumulated === undefined ? err(lastError) : ok(accumulated);
   }
 
-  #contextFor(context: FetchContext, ratingHint: FetchContext["ratingHint"]): FetchContext {
+  #contextFor(
+    context: FetchContext,
+    ratingHint: FetchContext["ratingHint"],
+    source: SourceName,
+  ): FetchContext {
+    const timeoutMs =
+      typeof this.#sourceTimeoutMs === "number"
+        ? this.#sourceTimeoutMs
+        : this.#sourceTimeoutMs?.[source];
     const signal =
-      this.#sourceTimeoutMs === undefined
+      timeoutMs === undefined
         ? context.signal
-        : AbortSignal.any([context.signal, AbortSignal.timeout(this.#sourceTimeoutMs)]);
+        : AbortSignal.any([context.signal, AbortSignal.timeout(timeoutMs)]);
 
     return ratingHint === undefined ? { signal } : { signal, ratingHint };
+  }
+}
+
+function normalizeSourceTimeouts(
+  value: PixivSourceChainOptions["sourceTimeoutMs"],
+): number | Readonly<Record<SourceName, number>> {
+  if (typeof value === "number") return value;
+  return {
+    ajax: value?.ajax ?? 3_000,
+    phixiv: value?.phixiv ?? 3_000,
+    ogp: value?.ogp ?? 2_500,
+  };
+}
+
+function timeoutValues(value: PixivSourceChainOptions["sourceTimeoutMs"]): readonly number[] {
+  if (value === undefined) return [];
+  return typeof value === "number"
+    ? [value]
+    : Object.values(value).filter((item) => item !== undefined);
+}
+
+function validateTimeout(value: number): void {
+  if (!Number.isSafeInteger(value) || value <= 0 || value > NODE_TIMER_MAX_MS) {
+    throw new RangeError(`source timeout must be an integer between 1 and ${NODE_TIMER_MAX_MS}`);
   }
 }
 

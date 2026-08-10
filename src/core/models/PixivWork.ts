@@ -115,7 +115,7 @@ export function mergeWorks(base: PixivWork, incoming: PixivWork): PixivWork {
   if (base.kind !== "illust" || incoming.kind !== "illust") return { ...base, rating };
 
   const pages = base.pages.length > 0 ? base.pages : incoming.pages;
-  const pageCount = Math.max(base.pageCount, pages.length);
+  const pageCount = Math.max(base.pageCount, incoming.pageCount, pages.length);
   const tags = base.tags.length > 0 ? base.tags : incoming.tags;
   const author = base.author.id === "" && incoming.author.id !== "" ? incoming.author : base.author;
 

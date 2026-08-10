@@ -61,6 +61,7 @@ export function toContentRating(
   tags: readonly PixivTag[],
   aiType: number | undefined,
 ): ContentRating {
+  const restrictKnown = xRestrict === 0 || xRestrict === 1 || xRestrict === 2;
   const byRestrict = xRestrict === 2 ? "r18g" : xRestrict === 1 ? "r18" : "all";
 
   let byTag: ContentRating["level"] = "all";
@@ -76,7 +77,8 @@ export function toContentRating(
 
   // 2経路のうち制限の強いほうを採る。
   const order = { all: 0, r18: 1, r18g: 2 } as const;
-  const level = order[byTag] > order[byRestrict] ? byTag : byRestrict;
+  const tagIsStricter = order[byTag] > order[byRestrict];
+  const level = tagIsStricter ? byTag : byRestrict;
 
   return {
     level,
@@ -85,8 +87,8 @@ export function toContentRating(
     // pixiv の aiType は 0=未設定 / 1=AI 不使用 / 2=AI 使用。
     // 0 を「不使用」と断定しない（実測でシリーズに 1 が来ることを確認している）。
     ai: aiType === 2 ? "yes" : aiType === 1 ? "no" : "unknown",
-    // xRestrict が読めた時点で権威ある情報である。
-    confidence: xRestrict === undefined ? "inferred" : "authoritative",
+    // 選んだ level の根拠に対応する確信度だけを採る。未知/欠落値を全年齢と断定しない。
+    confidence: tagIsStricter ? "inferred" : restrictKnown ? "authoritative" : "unknown",
   };
 }
 

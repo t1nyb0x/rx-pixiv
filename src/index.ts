@@ -34,7 +34,8 @@ const healthState = (): HealthState => ({
     guildCount: client.guilds.cache.size,
     wsPing: client.isReady() ? client.ws.ping : null,
   },
-  authenticated: env.PIXIV_PHPSESSID !== undefined,
+  // v1 does not accept or send a Pixiv session credential (ADR 0007).
+  authenticated: false,
 });
 
 const healthServer = new HealthServer(healthState, env.HEALTH_PORT);

@@ -52,4 +52,14 @@ describe("ImageUrlRewriter", () => {
     // 旧プロキシは素通ししない。
     expect(custom.rewrite("https://phixiv.net/i/a.jpg")).toBeUndefined();
   });
+
+  it.each([
+    "https://user:secret@proxy.example/i",
+    "https://proxy.example/i?token=secret",
+    "https://proxy.example/i#fragment",
+    "ftp://proxy.example/i",
+    "not a url",
+  ])("rejects an unsafe proxy base: %s", (proxyBaseUrl) => {
+    expect(() => new ImageUrlRewriter({ proxyBaseUrl })).toThrow(TypeError);
+  });
 });

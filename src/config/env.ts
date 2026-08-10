@@ -17,11 +17,6 @@ const positiveInteger = z.coerce.number().int().positive().max(Number.MAX_SAFE_I
 const timerDuration = positiveInteger.max(NODE_TIMER_MAX_MS);
 const positiveNumber = z.coerce.number().positive().finite();
 
-const optionalSecret = z.preprocess(
-  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-  z.string().trim().min(1).optional(),
-);
-
 const urlWithProtocol = (protocols: readonly string[]) =>
   z.url().refine(
     (value) => {
@@ -34,6 +29,18 @@ const urlWithProtocol = (protocols: readonly string[]) =>
     { message: `must use ${protocols.join(" or ")}` },
   );
 
+const outputBaseUrl = urlWithProtocol(["http:", "https:"]).refine(
+  (value) => {
+    try {
+      const url = new URL(value);
+      return url.username === "" && url.password === "" && url.search === "" && url.hash === "";
+    } catch {
+      return false;
+    }
+  },
+  { message: "must not contain credentials, query, or fragment" },
+);
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -44,14 +51,13 @@ export const envSchema = z
     OWNER_USER_ID: snowflake,
     ALLOWED_GUILD_IDS: csv.pipe(z.array(snowflake)).default([]),
     ALLOWED_CHANNEL_IDS: csv.pipe(z.array(snowflake)).default([]),
-    PXIMG_PROXY_BASE_URL: urlWithProtocol(["http:", "https:"]).default("https://phixiv.net/i"),
+    PXIMG_PROXY_BASE_URL: outputBaseUrl.default("https://phixiv.net/i"),
     REDIS_URL: urlWithProtocol(["redis:", "rediss:"]).default("redis://localhost:6379"),
     REDIS_DOWN_FALLBACK: z.enum(["deny", "allow"]).default("deny"),
     SOURCE_CHAIN: csv
       .pipe(z.array(z.enum(["ajax", "phixiv", "ogp"])).min(1))
       .default(["ajax", "phixiv", "ogp"]),
     RENDERER: z.enum(["components_v2", "embed"]).default("components_v2"),
-    PIXIV_PHPSESSID: optionalSecret,
     HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).default(9090),
     MAX_URLS_PER_MESSAGE: positiveInteger.max(PROCESSING_LIMITS.urlsPerMessage).default(3),
     MAX_PAGES_DEFAULT: positiveInteger.max(PROCESSING_LIMITS.pagesPerWork).default(4),

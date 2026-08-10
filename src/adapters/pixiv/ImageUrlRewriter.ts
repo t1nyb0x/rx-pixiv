@@ -28,12 +28,12 @@ export interface ImageUrlRewriterOptions {
  * 想定外の URL を無検査で埋め込まないため。
  */
 export class ImageUrlRewriter {
-  readonly #proxyBase: string;
-  readonly #proxyHost: string | undefined;
+  readonly #proxyBase: URL;
+  readonly #proxyHost: string;
 
   public constructor(options: ImageUrlRewriterOptions) {
-    this.#proxyBase = options.proxyBaseUrl.replace(/\/+$/, "");
-    this.#proxyHost = safeHost(this.#proxyBase);
+    this.#proxyBase = validateProxyBase(options.proxyBaseUrl);
+    this.#proxyHost = this.#proxyBase.hostname;
   }
 
   public rewrite(url: string): string | undefined {
@@ -47,20 +47,35 @@ export class ImageUrlRewriter {
     if (parsed.protocol !== "https:") return undefined;
 
     if (parsed.hostname === PXIMG_HOST) {
-      return `${this.#proxyBase}${parsed.pathname}${parsed.search}`;
+      const rewritten = new URL(this.#proxyBase);
+      rewritten.pathname = `${this.#proxyBase.pathname.replace(/\/+$/, "")}${parsed.pathname}`;
+      rewritten.search = parsed.search;
+      return rewritten.href;
     }
 
     if (DIRECTLY_EMBEDDABLE_HOSTS.has(parsed.hostname)) return url;
-    if (this.#proxyHost !== undefined && parsed.hostname === this.#proxyHost) return url;
+    if (parsed.hostname === this.#proxyHost) return url;
 
     return undefined;
   }
 }
 
-function safeHost(url: string): string | undefined {
+function validateProxyBase(value: string): URL {
   try {
-    return new URL(url).hostname;
+    const url = new URL(value);
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.search !== "" ||
+      url.hash !== ""
+    ) {
+      throw new Error("invalid proxy base URL");
+    }
+    return url;
   } catch {
-    return undefined;
+    throw new TypeError(
+      "proxyBaseUrl must be an HTTP(S) URL without credentials, query, or fragment",
+    );
   }
 }

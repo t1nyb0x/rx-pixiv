@@ -154,9 +154,48 @@ describe("HttpClient", () => {
     await expect(client.request(request("https://example.test/auth-shape"))).resolves.toMatchObject(
       {
         ok: true,
-        value: { status: 403, body: '{"error":"restricted"}' },
+        value: { status: 403, body: "" },
       },
     );
+  });
+
+  it("preserves an auth-required status even when the declared body is oversized", async () => {
+    const pool = mockAgent.get("https://example.test");
+    pool.intercept({ path: "/auth-large" }).reply(403, "restricted", {
+      headers: { "content-length": "999" },
+    });
+    const client = createClient({ maxBodyBytes: 5 });
+
+    await expect(client.request(request("https://example.test/auth-large"))).resolves.toMatchObject(
+      {
+        ok: true,
+        value: { status: 403, body: "" },
+      },
+    );
+  });
+
+  it("rejects response bodies that exceed the configured byte limit", async () => {
+    const pool = mockAgent.get("https://example.test");
+    pool.intercept({ path: "/too-large" }).reply(200, "123456");
+    const client = createClient({ maxBodyBytes: 5 });
+
+    await expect(client.request(request("https://example.test/too-large"))).resolves.toEqual({
+      ok: false,
+      error: { kind: "parse_error", sample: "response body exceeds size limit" },
+    });
+  });
+
+  it("rejects an oversized Content-Length before buffering the body", async () => {
+    const pool = mockAgent.get("https://example.test");
+    pool.intercept({ path: "/declared-large" }).reply(200, "x", {
+      headers: { "content-length": "999" },
+    });
+    const client = createClient({ maxBodyBytes: 5 });
+
+    await expect(client.request(request("https://example.test/declared-large"))).resolves.toEqual({
+      ok: false,
+      error: { kind: "parse_error", sample: "response body exceeds size limit" },
+    });
   });
 
   it("returns an error Result for an invalid request URL", async () => {
@@ -184,13 +223,16 @@ describe("HttpClient", () => {
     await expect(pending).resolves.toEqual({ ok: false, error: { kind: "timeout" } });
   });
 
-  function createClient(overrides: { timeoutMs?: number; retryDelayMs?: number } = {}): HttpClient {
+  function createClient(
+    overrides: { timeoutMs?: number; retryDelayMs?: number; maxBodyBytes?: number } = {},
+  ): HttpClient {
     return new HttpClient({
       dispatcher: mockAgent,
       userAgent: "rx-pixiv/test",
       timeoutMs: overrides.timeoutMs ?? 3_000,
       retryDelayMs: overrides.retryDelayMs ?? 250,
       jitterMs: () => 0,
+      ...(overrides.maxBodyBytes === undefined ? {} : { maxBodyBytes: overrides.maxBodyBytes }),
     });
   }
 });

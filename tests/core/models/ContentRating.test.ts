@@ -27,18 +27,24 @@ describe("escalateRating", () => {
     expect(escalateRating(rating({ level: "r18g" }), { level: "r18" }).level).toBe("r18g");
   });
 
-  it("keeps the better confidence available", () => {
+  it("keeps confidence attached to the evidence for the selected level", () => {
     const promoted = escalateRating(rating({ level: "r18", confidence: "inferred" }), {
       level: "all",
       confidence: "authoritative",
     });
-    expect(promoted.confidence).toBe("authoritative");
+    expect(promoted.confidence).toBe("inferred");
 
     const stricter = escalateRating(rating({ confidence: "authoritative" }), {
       level: "r18",
       confidence: "inferred",
     });
-    expect(stricter).toMatchObject({ level: "r18", confidence: "authoritative" });
+    expect(stricter).toMatchObject({ level: "r18", confidence: "inferred" });
+
+    const corroborated = escalateRating(rating({ level: "r18", confidence: "inferred" }), {
+      level: "r18",
+      confidence: "authoritative",
+    });
+    expect(corroborated.confidence).toBe("authoritative");
   });
 
   it("never turns sensitive back off", () => {

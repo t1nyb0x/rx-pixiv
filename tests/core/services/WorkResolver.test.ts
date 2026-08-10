@@ -84,6 +84,20 @@ function key(ref: PixivRef): string {
 const signal = (): AbortSignal => new AbortController().signal;
 
 describe("WorkResolver", () => {
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, 2_147_483_648])(
+    "rejects an invalid total budget: %s",
+    (totalBudgetMs) => {
+      expect(
+        () =>
+          new WorkResolver({
+            source: new StubSource(ok(work)),
+            cache: new MemoryCache(),
+            totalBudgetMs,
+          }),
+      ).toThrow(RangeError);
+    },
+  );
+
   it("returns a cached work without touching the source", async () => {
     const source = new StubSource(ok(work));
     const cache = new MemoryCache();
@@ -228,6 +242,22 @@ describe("ShortlinkResolver", () => {
       signal(),
     );
     expect((result as { error: FetchError }).error.kind).toBe("parse_error");
+    expect(http.urls).toEqual(["https://pixiv.me/someone"]);
+  });
+
+  it("does not follow an unsupported pixiv route as another HTTP hop", async () => {
+    const http = new RedirectingHttpClient(
+      new Map([["https://pixiv.me/someone", "https://www.pixiv.net/settings"]]),
+    );
+    const resolver = new ShortlinkResolver({ httpClient: http });
+
+    const result = await resolver.resolve(
+      shortlink as Extract<PixivRef, { kind: "shortlink" }>,
+      signal(),
+    );
+
+    expect((result as { error: FetchError }).error.kind).toBe("parse_error");
+    expect(http.urls).toEqual(["https://pixiv.me/someone"]);
   });
 
   it("fails when the destination is not a pixiv work", async () => {

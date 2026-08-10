@@ -14,7 +14,7 @@ edge: blocked-by external
 
 - [Plan 0001: 要件定義・アーキテクチャ設計・ADR 整備](0001-requirements-and-adr.md) — 分離元
 - [Plan 0003: ドメインモデルと URL 検出](0003-domain-and-url-detection.md) — `IMediaFetcher` ポートを定義した Plan
-- [Plan 0006: NSFW ゲートとメディア URL 組み立て](0006-nsfw-gate-and-media.md) — 具象実装（`ImageUrlRewriter` と、既定無効の `PximgFetcher`）を追加した Plan
+- [Plan 0006: NSFW ゲートとメディア URL 組み立て](0006-nsfw-gate-and-media.md) — `ImageUrlRewriter` を追加した Plan。任意の `PximgFetcher` は未実装
 
 ## 分かっていること
 
@@ -24,7 +24,7 @@ edge: blocked-by external
   **ffmpeg を Bot 本体イメージに入れないことは決まっている**
 - v1 では検出のみ行い、「うごイラ（静止画のみ表示）」と明示して静止画1枚を出す
 - `IMediaFetcher` ポートは `{ kind: "bytes" } | { kind: "url" }` を返す形で
-  **Plan 0003 で定義済み**（Plan 0006 が追加するのは具象の `PximgFetcher` のみ）。
+  **Plan 0003 で定義済み**（`PximgFetcher` は任意経路として未実装）。
   ffmpeg を要する実装を**別実装として差し込める**
 
 ## 未解決の問い

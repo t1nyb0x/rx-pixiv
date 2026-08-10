@@ -12,6 +12,14 @@ interface SetOptions {
   readonly expiration?: { readonly type: string; readonly value: number };
 }
 
+interface FakeMulti {
+  set(key: string, value: string): FakeMulti;
+  sAdd(key: string, member: string): FakeMulti;
+  del(key: string): FakeMulti;
+  sRem(key: string, member: string): FakeMulti;
+  exec(): Promise<unknown[]>;
+}
+
 /**
  * 使っているコマンドだけを実装したフェイク。
  * `redis` パッケージをモジュールごとモックせず、**クライアントの形**に対して当てる。
@@ -21,6 +29,8 @@ class FakeRedis {
   public readonly sets = new Map<string, Set<string>>();
   public now = 0;
   public failNext = false;
+  public failExecAfterCommit = false;
+  public multiCalls = 0;
 
   public sMembers(key: string): Promise<string[]> {
     this.#maybeFail();
@@ -70,6 +80,41 @@ class FakeRedis {
     return Promise.resolve(this.strings.delete(key) ? 1 : 0);
   }
 
+  public multi(): FakeMulti {
+    this.multiCalls += 1;
+    const commands: Array<() => Promise<unknown>> = [];
+    const transaction = {
+      set: (key: string, value: string) => {
+        commands.push(() => this.set(key, value));
+        return transaction;
+      },
+      sAdd: (key: string, member: string) => {
+        commands.push(() => this.sAdd(key, member));
+        return transaction;
+      },
+      del: (key: string) => {
+        commands.push(() => this.del(key));
+        return transaction;
+      },
+      sRem: (key: string, member: string) => {
+        commands.push(() => this.sRem(key, member));
+        return transaction;
+      },
+      exec: async () => {
+        const replies: unknown[] = [];
+        // Redis の MULTI/EXEC と同じく、登録順に直列実行するフェイク。
+        // eslint-disable-next-line no-await-in-loop
+        for (const command of commands) replies.push(await command());
+        if (this.failExecAfterCommit) {
+          this.failExecAfterCommit = false;
+          throw new Error("transaction response lost");
+        }
+        return replies;
+      },
+    };
+    return transaction;
+  }
+
   public asClient(): RedisClientType {
     return this as unknown as RedisClientType;
   }
@@ -103,6 +148,7 @@ describe("RedisBanRepository", () => {
     const first = new RedisBanRepository(redis.asClient());
     await first.preload();
     await first.save(banRecord);
+    expect(redis.multiCalls).toBe(1);
 
     // 別プロセスを模して、同じ Redis から読み直す。
     const second = new RedisBanRepository(redis.asClient());
@@ -117,6 +163,7 @@ describe("RedisBanRepository", () => {
     await repo.save(banRecord);
 
     expect(await repo.delete(banRecord.subject)).toBe(true);
+    expect(redis.multiCalls).toBe(2);
     expect(await repo.find(banRecord.subject)).toBeUndefined();
 
     const reloaded = new RedisBanRepository(redis.asClient());
@@ -124,7 +171,7 @@ describe("RedisBanRepository", () => {
     expect(await reloaded.list()).toEqual([]);
   });
 
-  it("skips malformed entries instead of failing the whole preload", async () => {
+  it("fails closed when an indexed entry is malformed", async () => {
     const redis = new FakeRedis();
     await redis.sAdd("app:ban:list", "user:1");
     await redis.sAdd("app:ban:list", "user:2");
@@ -132,8 +179,47 @@ describe("RedisBanRepository", () => {
     await redis.set("app:ban:user:2", JSON.stringify(banRecord));
 
     const repo = new RedisBanRepository(redis.asClient());
+    await expect(repo.preload()).rejects.toThrow(/malformed/);
+    await expect(repo.list()).rejects.toThrow(/not loaded/);
+  });
+
+  it("fails closed when an indexed entry is missing", async () => {
+    const redis = new FakeRedis();
+    await redis.sAdd("app:ban:list", "user:1");
+
+    const repo = new RedisBanRepository(redis.asClient());
+    await expect(repo.preload()).rejects.toThrow(/missing/);
+  });
+
+  it("rejects an indexed record whose identity differs from its index key", async () => {
+    const redis = new FakeRedis();
+    await redis.sAdd("app:ban:list", "user:2");
+    await redis.set("app:ban:user:2", JSON.stringify(banRecord));
+
+    const repo = new RedisBanRepository(redis.asClient());
+    await expect(repo.preload()).rejects.toThrow(/identity/);
+    await expect(repo.list()).rejects.toThrow(/not loaded/);
+  });
+
+  it("marks a loaded repository unavailable when a reload fails", async () => {
+    const redis = new FakeRedis();
+    const repo = new RedisBanRepository(redis.asClient());
     await repo.preload();
-    expect(await repo.list()).toHaveLength(1);
+    await repo.save(banRecord);
+    await redis.set("app:ban:user:1", "{ broken");
+
+    await expect(repo.preload()).rejects.toThrow(/malformed/);
+    await expect(repo.find(banRecord.subject)).rejects.toThrow(/not loaded/);
+  });
+
+  it("fails closed when a transaction may have committed but its response is lost", async () => {
+    const redis = new FakeRedis();
+    const repo = new RedisBanRepository(redis.asClient());
+    await repo.preload();
+    redis.failExecAfterCommit = true;
+
+    await expect(repo.save(banRecord)).rejects.toThrow(/response lost/);
+    await expect(repo.find(banRecord.subject)).rejects.toThrow(/not loaded/);
   });
 
   it("propagates a preload failure so the caller can fail closed", async () => {
@@ -163,6 +249,7 @@ describe("RedisBlockRepository", () => {
     const first = new RedisBlockRepository(redis.asClient());
     await first.preload();
     await first.save(record);
+    expect(redis.multiCalls).toBe(1);
 
     const second = new RedisBlockRepository(redis.asClient());
     await second.preload();

@@ -70,4 +70,14 @@ describe("MemoryCooldownStore", () => {
     expect(await store.consume({ kind: "user", id: "c" }, 100)).toBe(true);
     expect(await store.consume({ kind: "user", id: "a" }, 100)).toBe(true);
   });
+
+  it("evicts the oldest entry when the bound is reached without expirations", async () => {
+    const store = new MemoryCooldownStore({ now: () => 0, maxEntries: 2 });
+    await store.consume({ kind: "user", id: "a" }, 1_000);
+    await store.consume({ kind: "user", id: "b" }, 1_000);
+    await store.consume({ kind: "user", id: "c" }, 1_000);
+
+    expect(await store.consume({ kind: "user", id: "a" }, 1_000)).toBe(true);
+    expect(await store.consume({ kind: "user", id: "c" }, 1_000)).toBe(false);
+  });
 });

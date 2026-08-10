@@ -59,11 +59,22 @@ describe("toContentRating", () => {
     }
   });
 
-  it("degrades confidence when xRestrict is missing", () => {
+  it("treats a missing or unknown xRestrict as unknown rather than all-ages", () => {
     expect(toContentRating(undefined, [], undefined)).toMatchObject({
       level: "all",
-      confidence: "inferred",
+      confidence: "unknown",
       ai: "unknown",
+    });
+    expect(toContentRating(99, [], undefined)).toMatchObject({
+      level: "all",
+      confidence: "unknown",
+    });
+  });
+
+  it("keeps tag-only restrictions inferred instead of borrowing authoritative confidence", () => {
+    expect(toContentRating(0, [tag("R-18")], 0)).toMatchObject({
+      level: "r18",
+      confidence: "inferred",
     });
   });
 

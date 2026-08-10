@@ -44,7 +44,7 @@ Plan 0007 までで Bot は動くが、
 - **対象**: `src/infrastructure/http/HealthServer.ts`
 - `/readyz`: `client.isReady()` かつ WS ping が数値のときのみ 200。それ以外は 503
 - `/health`: uptime・WS 状態と ping・ギルド数・キャッシュサイズ・
-  経路別サーキット状態・`authenticated: boolean`（**値そのものは出さない**）
+  経路別サーキット状態・`authenticated: false`（v1は資格情報を受け付けない）
 
 ### 項目3: 正常終了
 
@@ -78,8 +78,8 @@ Plan 0007 までで Bot は動くが、
   4枚上限・必ず作品リンクを併記・削除要請には `!owner/block` で応じる）
 - **管理コマンド**（[ADR 0015](../../../docs/adr/0015-admin-commands-and-abuse-control.md)）の一覧と、
   **`Manage Messages` が実質必須である理由**（[ADR 0006 既知の限界1](../../../docs/adr/0006-age-restricted-content.md)）を書く
-- [ADR 0007](../../../docs/adr/0007-pixiv-session-optional.md) を実装した場合、
-  **PHPSESSID の規約リスクと捨てアカウント推奨を明記する**
+- v1 は PHPSESSID を受け付けないことを明記する。将来別 Plan で認証を実装する場合だけ、
+  規約リスク・送信先制限・捨てアカウント推奨を同時に文書化する
 
 ## 影響範囲
 
@@ -107,7 +107,7 @@ Plan 0007 までで Bot は動くが、
 - [ ] Discord 未接続時に `/readyz` が 503 を返す
 - [ ] `unhandledRejection` がログされ、握り潰されず、かつプロセスが落ちない
 - [ ] `/metrics` が全カウンタを返す
-- [ ] `/health` に PHPSESSID の値が含まれない（`authenticated` の真偽のみ）
+- [ ] `/health` が v1 の非認証状態（`authenticated: false`）だけを返す
 - [ ] ライブスモークが手動実行で緑
 - [ ] `README.md` に権利上の姿勢が明記されている
 - [ ] 週次 cron ワークフローが設定され、マージゲートになっていない

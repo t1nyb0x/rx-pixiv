@@ -37,8 +37,8 @@ export function selectMedia(
   rewriter: UrlRewriter,
   options: MediaSelectorOptions = {},
 ): SelectedMedia {
-  const hardLimit = options.hardLimit ?? 10;
-  const maxPages = Math.min(options.maxPages ?? 4, hardLimit);
+  const hardLimit = normalizeLimit(options.hardLimit, 10, 10);
+  const maxPages = Math.min(normalizeLimit(options.maxPages, 4, hardLimit), hardLimit);
   const preference = options.variantPreference ?? DEFAULT_VARIANT_PREFERENCE;
 
   const urls: string[] = [];
@@ -52,6 +52,12 @@ export function selectMedia(
 
   const total = Math.max(totalPages, pages.length);
   return { urls, omitted: Math.max(0, total - urls.length), totalPages: total };
+}
+
+function normalizeLimit(value: number | undefined, fallback: number, maximum: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.min(Math.floor(value), maximum);
 }
 
 /** 選好順に最初に見つかった変種を返す。`original` は候補に入れない。 */

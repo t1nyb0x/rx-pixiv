@@ -14,6 +14,8 @@ export interface HttpClientOptions {
   readonly retryDelayMs?: number;
   readonly jitterMs?: () => number;
   readonly rateLimiter?: RateLimiter;
+  /** メタデータ応答本文の上限。巨大・終端なし応答によるメモリ枯渇を防ぐ。 */
+  readonly maxBodyBytes?: number;
 }
 
 export class HttpClient implements IHttpClient {
@@ -24,6 +26,7 @@ export class HttpClient implements IHttpClient {
   readonly #retryDelayMs: number;
   readonly #jitterMs: () => number;
   readonly #rateLimiter: RateLimiter;
+  readonly #maxBodyBytes: number;
 
   public constructor(options: HttpClientOptions = {}) {
     const agent = options.dispatcher === undefined ? new Agent() : undefined;
@@ -34,9 +37,13 @@ export class HttpClient implements IHttpClient {
     this.#retryDelayMs = options.retryDelayMs ?? 250;
     this.#jitterMs = options.jitterMs ?? (() => Math.floor(Math.random() * 101));
     this.#rateLimiter = options.rateLimiter ?? RateLimiter.forPixiv();
+    this.#maxBodyBytes = options.maxBodyBytes ?? 1_048_576;
 
     validateTimer("timeoutMs", this.#timeoutMs, false);
     validateTimer("retryDelayMs", this.#retryDelayMs, true);
+    if (!Number.isSafeInteger(this.#maxBodyBytes) || this.#maxBodyBytes <= 0) {
+      throw new RangeError("maxBodyBytes must be a positive safe integer");
+    }
   }
 
   public static fromEnv(
@@ -105,17 +112,42 @@ export class HttpClient implements IHttpClient {
         signal,
         dispatcher: this.#dispatcher,
       });
-      const body = await response.body.text();
-
-      if (response.statusCode === 404) return err({ kind: "not_found" });
+      if (response.statusCode === 404) {
+        response.body.destroy();
+        return err({ kind: "not_found" });
+      }
       if (response.statusCode === 429) {
+        response.body.destroy();
         const retryAfterMs = parseRetryAfter(response.headers["retry-after"]);
         return retryAfterMs === undefined
           ? err({ kind: "rate_limited" })
           : err({ kind: "rate_limited", retryAfterMs });
       }
       if (response.statusCode >= 500) {
+        response.body.destroy();
         return err({ kind: "upstream_5xx", status: response.statusCode });
+      }
+
+      // 認証要求という安全上の証拠は、本文のサイズ・終端状態より先に確定する。
+      // source層はstatusだけで auth_required へ写像できるため本文を保持しない。
+      if (response.statusCode === 401 || response.statusCode === 403) {
+        response.body.destroy();
+        return ok({
+          status: response.statusCode,
+          headers: normalizeHeaders(response.headers),
+          body: "",
+        });
+      }
+
+      const contentLength = parseContentLength(response.headers["content-length"]);
+      if (contentLength !== undefined && contentLength > this.#maxBodyBytes) {
+        response.body.destroy();
+        return err({ kind: "parse_error", sample: "response body exceeds size limit" });
+      }
+
+      const body = await readBody(response.body, this.#maxBodyBytes);
+      if (body === undefined) {
+        return err({ kind: "parse_error", sample: "response body exceeds size limit" });
       }
 
       return ok({
@@ -130,6 +162,30 @@ export class HttpClient implements IHttpClient {
       clearTimeout(timeout);
     }
   }
+}
+
+function parseContentLength(value: string | readonly string[] | undefined): number | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || !/^\d+$/.test(raw)) return undefined;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+async function readBody(
+  body: AsyncIterable<Uint8Array> & { destroy(): void },
+  maxBytes: number,
+): Promise<string | undefined> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for await (const chunk of body) {
+    total += chunk.byteLength;
+    if (total > maxBytes) {
+      body.destroy();
+      return undefined;
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function isRetryable(error: FetchError): boolean {

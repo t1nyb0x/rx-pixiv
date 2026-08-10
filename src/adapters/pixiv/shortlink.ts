@@ -1,4 +1,5 @@
 import type { FetchError } from "#core/models/errors";
+import { NODE_TIMER_MAX_MS } from "#config/constants";
 import type { PixivRef } from "#core/models/PixivRef";
 import { err, ok, type Result } from "#core/models/Result";
 import type { IHttpClient } from "#core/ports/IHttpClient";
@@ -10,6 +11,7 @@ export const MAX_REDIRECT_HOPS = 3;
 export interface ShortlinkResolverOptions {
   readonly httpClient: IHttpClient;
   readonly maxHops?: number;
+  readonly timeoutMs?: number;
 }
 
 /**
@@ -23,10 +25,19 @@ export interface ShortlinkResolverOptions {
 export class ShortlinkResolver {
   readonly #httpClient: IHttpClient;
   readonly #maxHops: number;
+  readonly #timeoutMs: number;
 
   public constructor(options: ShortlinkResolverOptions) {
     this.#httpClient = options.httpClient;
     this.#maxHops = options.maxHops ?? MAX_REDIRECT_HOPS;
+    this.#timeoutMs = options.timeoutMs ?? 2_000;
+    if (
+      !Number.isSafeInteger(this.#timeoutMs) ||
+      this.#timeoutMs <= 0 ||
+      this.#timeoutMs > NODE_TIMER_MAX_MS
+    ) {
+      throw new RangeError(`timeoutMs must be an integer between 1 and ${NODE_TIMER_MAX_MS}`);
+    }
   }
 
   public async resolve(
@@ -34,11 +45,12 @@ export class ShortlinkResolver {
     signal: AbortSignal,
   ): Promise<Result<PixivRef, FetchError>> {
     let url = ref.canonicalUrl;
+    const budgetSignal = AbortSignal.any([signal, AbortSignal.timeout(this.#timeoutMs)]);
 
     for (let hop = 0; hop < this.#maxHops; hop += 1) {
       // 転送先は前のホップの応答からしか分からないため、逐次にしかできない。
       // eslint-disable-next-line no-await-in-loop
-      const response = await this.#httpClient.request({ url, method: "GET", signal });
+      const response = await this.#httpClient.request({ url, method: "GET", signal: budgetSignal });
       if (!response.ok) return response;
 
       const location = response.value.headers["location"];
@@ -58,6 +70,10 @@ export class ShortlinkResolver {
 
       const resolved = this.#detectOne(url);
       if (resolved.ok) return resolved;
+
+      // 転送先が別の pixiv.me 短縮URLである場合だけ次hopを許す。
+      // 任意ホストを追うと、上流のLocationを経由したSSRFになる。
+      if (!isSafeShortlinkHop(url)) return resolved;
     }
 
     return err({ kind: "parse_error", sample: url });
@@ -70,5 +86,14 @@ export class ShortlinkResolver {
       return err({ kind: "parse_error", sample: url });
     }
     return ok(first);
+  }
+}
+
+function isSafeShortlinkHop(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname.toLowerCase() === "pixiv.me";
+  } catch {
+    return false;
   }
 }

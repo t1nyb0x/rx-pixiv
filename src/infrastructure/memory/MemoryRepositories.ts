@@ -73,7 +73,13 @@ export class MemoryCooldownStore implements ICooldownStore {
 
     if (expiry !== undefined && expiry > now) return Promise.resolve(false);
 
-    if (this.#expiries.size >= this.#maxEntries) this.#evictExpired(now);
+    if (!this.#expiries.has(key) && this.#expiries.size >= this.#maxEntries) {
+      this.#evictExpired(now);
+      if (this.#expiries.size >= this.#maxEntries) {
+        const oldest = this.#expiries.keys().next().value as string | undefined;
+        if (oldest !== undefined) this.#expiries.delete(oldest);
+      }
+    }
     this.#expiries.set(key, now + windowMs);
     return Promise.resolve(true);
   }
