@@ -125,7 +125,8 @@
 - [x] `parseOwnerCommand` / `chunkForDiscord`（純粋なコマンド解釈）
 - [x] `ICooldownStore` ポートとインメモリ実装3種
 - [x] Redis 実装（`redis@5` を追加。接続・リポジトリ2種・クールダウン）
-- [ ] `OwnerCommandHandler`（discord.js 配線）
+- [x] `OwnerCommandService`（コマンド実行・discord.js 非依存）
+- [ ] `OwnerCommandHandler`（discord.js の messageCreate への配線 — Plan 0007 と同時に行う）
 
 **仕上げ**
 - [x] `.env.example` に Plan 0005 で増える変数を追加
@@ -529,6 +530,41 @@ Plan 0011 の残りは `OwnerCommandHandler` の discord.js 配線のみ。
   到達不能ポートなので速いが、厳密にはユニットテストではない
 - `redis@5` の `set` オプション形（`{condition:"NX", expiration:{type:"PX",value}}`）は
   v4 と違う。フェイクもこの形に合わせてあるので、v4 へ落とすと壊れる
+
+##### 2026-08-11 — 管理コマンドの実行部を実装
+
+**やったこと**:
+`IGuildAdmin` ポートと `OwnerCommandService` を実装。テスト401件全通過、
+文 96.14% / 分岐 89.15%。
+
+**discord.js をポートで切り離した。** ギルド一覧と離脱だけを `IGuildAdmin` にし、
+コマンド実行は「何をして何を返すか」だけを持つ純粋寄りのサービスにした。
+おかげで全コマンドの挙動を discord.js のフェイク無しでテストできている。
+
+**無反応の条件を3つ固定した**（ADR 0015）:
+- オーナー以外 → 無反応（**存在も明かさない**。エラーも返さない）
+- DM でない → 無反応
+- コマンドでない通常の会話 → 無反応
+
+`!owner/status` は真偽だけを返し、**PHPSESSID の値そのものを出さない**（NFR-5）。
+テストで `PHPSESSID` の文字列が出力に現れないことを固定した。
+
+**今の見立て**:
+Plan 0011 の残りは `messageCreate` への配線だけ。これは Plan 0007 の
+`MessageHandler` と同じ場所なので、**Plan 0007 と同時にやるのが自然**。
+TODO の「0011 を先に」というメモは、純粋部分については果たした。
+
+**次の自分へ**:
+Plan 0007（レンダリングと messageCreate 配線）。ここで初めて Bot が動く。
+配線するもの: `AccessGate` → `UrlDetector` → 展開拒否照合 → `WorkResolver` →
+`NsfwPolicy` → `MediaSelector` → `ImageUrlRewriter` → `MessageComposer` → レンダラ。
+`OwnerCommandService` の呼び出しも同じハンドラの先頭に入る。
+
+**気になっていること**:
+- `OwnerCommandService.handle` が `undefined` を「無反応」の意味で使っている。
+  「コマンドでない」と「権限が無い」が同じ返り値になるが、
+  **呼び出し側から区別する必要が無い**（どちらも無反応）ので許容している。
+  ログには区別を残したくなるかもしれない
 
 **気になっていること**:
 - スパイクで「WebFetch の観測 → curl で再検証」という二段構えが効いた。
