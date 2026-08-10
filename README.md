@@ -5,9 +5,9 @@ Discord に貼られた **pixiv の URL を読める形に展開する Bot**。
 `rx-twitter`（Twitter/X）、`rx-instagram`（Instagram）に続く3本目。
 
 > **状態: コア実装中（URL 検出・ドメインモデル実装済み）**
-> 設定検証・ロガー・ヘルスサーバ・Discord 接続に加え、pixiv URL の検出・正規化と
-> ドメインモデルを実装済みです。Discord メッセージへの配線、作品取得、年齢制限判定、
-> 管理コマンドは後続 Plan で実装します。
+> 設定検証・ロガー・ヘルスサーバ・Discord 接続、pixiv URL の検出・正規化、ドメインモデル、
+> HTTP timeout/retry・上流保護・プロセス内キャッシュ基盤を実装済みです。
+> Discord メッセージへの配線、作品取得、年齢制限判定、管理コマンドは後続 Plan で実装します。
 > 進捗は [TODO.md](TODO.md) を参照してください。
 
 ---

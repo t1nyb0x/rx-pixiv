@@ -15,6 +15,7 @@
 |---|---|---|
 | [design-phase-spike-and-numbering.md](design-phase-spike-and-numbering.md) | 設計フェーズの5つの型 — 実測で前提を潰す・Proposed で残す・採番衝突・**却下理由こそ実測対象**・置換 ADR は残す | 設計フェーズ, 要件定義, ADR, Proposed, Superseded, スパイク, 実測, 採番, 相互参照, Rejected alternatives, 却下理由, ドキュメントレビュー, 骨格プランニング |
 | [typescript-service-scaffold-boundaries.md](typescript-service-scaffold-boundaries.md) | TypeScript サービス基盤の解決経路・設定境界・配布順序を負例で固定する | TypeScript, ESM, package imports, zod, env, oxlint, workflow_call, release-please, CI/CD |
+| [upstream-protection-composition.md](upstream-protection-composition.md) | 上流保護は独立クラスではなく物理試行と論理経路へ合成する | undici, retry, rate limit, circuit breaker, timeout, Node timer, TTL, LRU |
 | [url-detection-and-domain-unions.md](url-detection-and-domain-unions.md) | URL 検出とドメイン共用体は抑制範囲・正規化キー・閉集合を契約にする | URL検出, Markdown抑制, 正規化, 重複排除, 判別共用体, expectTypeOf, capabilities |
 
 > ADDF 由来の知見は `ADDF/` 配下（29件）にある。上表は未インデックス分を含むため、

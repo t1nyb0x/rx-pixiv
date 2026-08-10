@@ -8,6 +8,8 @@ export const PROCESSING_LIMITS = Object.freeze({
   pagesPerWork: DISCORD_LIMITS.galleryItemsPerMessage,
 });
 
+export const NODE_TIMER_MAX_MS = 2_147_483_647;
+
 export const HEALTH_ENDPOINTS = Object.freeze({
   liveness: "/healthz",
   readiness: "/readyz",

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { PROCESSING_LIMITS } from "#config/constants";
+import { NODE_TIMER_MAX_MS, PROCESSING_LIMITS } from "#config/constants";
 
 const snowflake = z.string().regex(/^\d{17,20}$/, "must be a Discord snowflake");
 
@@ -13,7 +13,9 @@ const csv = z.string().transform((value) =>
 
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
 
-const positiveInteger = z.coerce.number().int().positive();
+const positiveInteger = z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const timerDuration = positiveInteger.max(NODE_TIMER_MAX_MS);
+const positiveNumber = z.coerce.number().positive().finite();
 
 const optionalSecret = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -54,6 +56,10 @@ export const envSchema = z
     MAX_URLS_PER_MESSAGE: positiveInteger.max(PROCESSING_LIMITS.urlsPerMessage).default(3),
     MAX_PAGES_DEFAULT: positiveInteger.max(PROCESSING_LIMITS.pagesPerWork).default(4),
     MAX_PAGES_HARD: positiveInteger.max(PROCESSING_LIMITS.pagesPerWork).default(10),
+    SOURCE_TIMEOUT_MS: timerDuration.default(3_000),
+    PIXIV_RPS: positiveNumber.default(1),
+    CIRCUIT_FAILURE_THRESHOLD: positiveInteger.default(5),
+    CIRCUIT_OPEN_MS: timerDuration.default(120_000),
     USER_COOLDOWN_MS: positiveInteger.default(10_000),
     CHANNEL_COOLDOWN_MS: positiveInteger.default(5_000),
     SPOILER_IN_NSFW: booleanString.default(true),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { NODE_TIMER_MAX_MS } from "#config/constants";
 import { EnvValidationError, parseEnv } from "#config/env";
 
 const required = {
@@ -16,6 +17,10 @@ describe("parseEnv", () => {
     expect(env.SOURCE_CHAIN).toEqual(["ajax", "phixiv", "ogp"]);
     expect(env.ALLOWED_GUILD_IDS).toEqual([]);
     expect(env.ALLOWED_CHANNEL_IDS).toEqual([]);
+    expect(env.SOURCE_TIMEOUT_MS).toBe(3_000);
+    expect(env.PIXIV_RPS).toBe(1);
+    expect(env.CIRCUIT_FAILURE_THRESHOLD).toBe(5);
+    expect(env.CIRCUIT_OPEN_MS).toBe(120_000);
     expect(env.SPOILER_IN_NSFW).toBe(true);
     expect(env.ALLOW_NSFW_IN_DM).toBe(false);
   });
@@ -70,6 +75,25 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...required, MAX_PAGES_DEFAULT: "5", MAX_PAGES_HARD: "4" })).toThrow(
       EnvValidationError,
     );
+  });
+
+  it.each([
+    { PIXIV_RPS: "0" },
+    { PIXIV_RPS: "Infinity" },
+    { SOURCE_TIMEOUT_MS: "0" },
+    { CIRCUIT_FAILURE_THRESHOLD: "1.5" },
+    { CIRCUIT_OPEN_MS: "-1" },
+  ])("rejects invalid upstream protection settings: %o", (invalid) => {
+    expect(() => parseEnv({ ...required, ...invalid })).toThrow(EnvValidationError);
+  });
+
+  it("accepts Node's timer boundary and rejects one millisecond beyond it", () => {
+    expect(
+      parseEnv({ ...required, SOURCE_TIMEOUT_MS: String(NODE_TIMER_MAX_MS) }).SOURCE_TIMEOUT_MS,
+    ).toBe(NODE_TIMER_MAX_MS);
+    expect(() =>
+      parseEnv({ ...required, SOURCE_TIMEOUT_MS: String(NODE_TIMER_MAX_MS + 1) }),
+    ).toThrow(EnvValidationError);
   });
 
   it("accepts processing limits at their exact boundaries", () => {

@@ -140,6 +140,7 @@ src/
 │   │   ├── HttpClient.ts             # undici Agent・UA・タイムアウト・1回リトライ
 │   │   ├── RateLimiter.ts            # ホスト別トークンバケット
 │   │   ├── CircuitBreaker.ts
+│   │   ├── CircuitProtectedSource.ts # source取得・検証・写像を経路別に保護
 │   │   ├── HealthServer.ts           # Hono: /healthz /readyz /health /metrics
 │   │   └── PximgFetcher.ts           # 第3段フォールバック時のみ使う（既定は無効）
 │   ├── cache/{LruTtlCache,WorkCache}.ts
@@ -355,6 +356,10 @@ signal = AbortSignal.any([総予算, AbortSignal.timeout(経路別)])
 | メッセージ内取得同時実行 | 2 |
 | 作品内の画像同時取得 | 4（総バイト予算の下で） |
 
+rate limit は `HttpClient` の各物理HTTP試行へ適用し、内部retryにも必ず課す。
+circuit breaker は `CircuitProtectedSource` でsourceの取得・zod検証・写像全体を包み、
+`parse_error` を含む論理経路の障害を記録する。呼び出し側のキャンセルは障害へ数えない。
+
 ---
 
 ## 8. メディア配信
@@ -404,9 +409,9 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 
 | キャッシュ | キー | TTL | 上限 |
 |---|---|---|---|
-| 作品メタ（illust/manga/novel） | `work:illust:{id}` | 6h | 2000 |
-| ユーザープロフィール | `work:user:{id}` | 1h | 500 |
-| ネガティブ（`not_found`） | `neg:{kind}:{id}` | 10min | 1000 |
+| 作品メタ（artwork/novel/novel_series） | `pixivRefKey(ref)`（作品用 Map） | 6h | 2000 |
+| ユーザープロフィール | `pixivRefKey(ref)`（ユーザー用 Map） | 1h | 500 |
+| ネガティブ（`not_found`） | `pixivRefKey(ref)`（不在用 Map） | 10min | 1000 |
 | サーキットブレーカ状態 | — | — | — |
 
 高頻度・大量であり、消えても再取得すればよい。**Redis をホットパスに入れない。**
@@ -437,7 +442,7 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 環境変数のみ。`src/config/env.ts` の zod スキーマで起動時に一括検証し、
 不備は読める形の集約エラーを出して exit 1。YAML 設定ファイルは v1 では持たない。
 
-主要なもの（全量は `.env.example`）:
+主要なもの（v1 の予定を含む。**現在利用可能な全量**は `.env.example`）:
 
 | 変数 | 既定 | 用途 |
 |---|---|---|
@@ -455,6 +460,7 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 | `PIXIV_PHPSESSID` | 未設定 | 任意・秘匿・ログでマスク |
 | `FETCH_TOTAL_BUDGET_MS` / `SOURCE_TIMEOUT_MS` | `8000` / `3000` | |
 | `PIXIV_RPS` | `1` | |
+| `CIRCUIT_FAILURE_THRESHOLD` / `CIRCUIT_OPEN_MS` | `5` / `120000` | 60秒内の連続失敗数 / 開状態の時間 |
 | `HEALTH_PORT` | `9090` | 公開しない |
 | **`PXIMG_PROXY_BASE_URL`** | `https://phixiv.net/i` | **画像プロキシの向き先。自前ホストへ逃げる口**（[ADR 0014](adr/0014-media-delivery-via-proxy-url.md)） |
 | `MEDIA_FALLBACK` | `none` | `attachment` で旧・添付方式を第3段として有効化 |
@@ -491,7 +497,8 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 1. `IPixivSource` を実装するクラスを `adapters/pixiv/` に追加する
 2. レスポンスの zod スキーマを `schemas/` に、`PixivWork` への写像を `mappers/` に置く
 3. `capabilities`（`ratingAuthority` / `multiPage` / 対応種別）を正直に宣言する
-4. `index.ts` の連鎖組み立てに登録し、`SOURCE_CHAIN` の既定値に加える
+4. `CircuitProtectedSource.fromEnv` で包み、論理経路単位のサーキットブレーカを適用する
+5. `index.ts` の連鎖組み立てに登録し、`SOURCE_CHAIN` の既定値に加える
 
 `core/` には一切触れない。
 

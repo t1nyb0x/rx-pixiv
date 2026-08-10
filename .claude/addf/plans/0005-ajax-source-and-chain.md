@@ -87,6 +87,9 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
   総予算が尽きていれば次段を**起動しない**
 - `pixiv.me` のリダイレクト解決（最大3ホップ、2秒）→ 純粋な `UrlDetector` で再判定
 - `WorkResolver` はキャッシュ参照 → 連鎖 → キャッシュ書き込み
+- `HttpClient.fromEnv(env)` で生成した1インスタンスを全 source で共有し、各 source を
+  `CircuitProtectedSource.fromEnv(source, env)` で包む（物理 retry は共有 host rate limit の計数対象、
+  zod の `parse_error` は source 単位の circuit failure にする）
 
 ### 項目6: 任意の pixiv セッション
 

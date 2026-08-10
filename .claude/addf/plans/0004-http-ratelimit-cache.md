@@ -1,6 +1,6 @@
 # Plan 0004: HTTP 基盤・レート制御・キャッシュ
 
-## 実装状況: 未着手
+## 実装状況: 進行中（2026-08-10）
 
 owner_feedback: 不要
 
@@ -26,8 +26,8 @@ rx-instagram に無かったもの（タイムアウト・リトライ・同時�
 
 ## 現状の挙動
 
-未実装。参考として rx-instagram にはこれらの機構が一切なく、
-応答しない上流に対して無限に待ち、URL 数ぶんの取得を無制限に並列発火する。
+HTTP timeout・限定 retry・物理試行ごとの rate limit・経路別 circuit breaker・プロセス内 cache・
+同時実行制限の基盤を実装済み。作品取得 source への注入は Plan 0005 で行う。
 
 ## 変更内容（項目・フェーズ）
 
@@ -38,6 +38,7 @@ rx-instagram に無かったもの（タイムアウト・リトライ・同時�
 - User-Agent の設定、`AbortSignal` によるタイムアウト
 - リトライは **`network` と `upstream_5xx` に対して1回のみ**、250ms + ジッタ
 - **429 と 4xx はリトライしない**
+- 各物理 HTTP 試行を `RateLimiter` に通す。環境設定から安全に合成する factory を持つ
 - `IHttpClient` ポートを実装する
 
 ### 項目2: レート制御
@@ -54,6 +55,8 @@ rx-instagram に無かったもの（タイムアウト・リトライ・同時�
 - 60秒内5連続失敗で開 → 120秒 → 半開1本
 - 開いている間は**遅延ゼロ**で失敗を返す
 - 環境変数 `CIRCUIT_FAILURE_THRESHOLD` / `CIRCUIT_OPEN_MS`
+- `CircuitProtectedSource` で source の取得・検証全体を包み、`parse_error` を含む経路別の最終結果を記録する
+- 呼び出し側の AbortSignal によるキャンセルは上流障害として数えない
 
 ### 項目4: キャッシュ
 
@@ -73,7 +76,8 @@ rx-instagram に無かったもの（タイムアウト・リトライ・同時�
 
 ## 影響範囲
 
-`src/infrastructure/` と `src/utils/` の新規追加。`core/` のポートを実装する。
+`src/infrastructure/` と `src/utils/` の新規追加、`src/config/env.ts` と設定例・設計文書の更新。
+`core/` のポートを実装する。
 
 ## テスト方針
 
@@ -104,6 +108,7 @@ rx-instagram に無かったもの（タイムアウト・リトライ・同時�
 - [ ] 外部ライブラリ（`bottleneck` / `opossum` / `p-limit` / `lru-cache`）を追加していない
 - [ ] `IWorkCache` の実装が非同期シグネチャである
 - [ ] テストが実ネットワークに一切出ない
+- [ ] rate limit が `HttpClient` の各物理試行へ、circuit breaker が `CircuitProtectedSource` の論理取得経路へ合成され、設定が動作へ反映される
 
 ## AI 実装時間見積もり
 
