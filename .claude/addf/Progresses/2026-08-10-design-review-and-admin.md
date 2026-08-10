@@ -87,68 +87,79 @@
 
 ## タスク
 
-### 現在のタスク: Plan 0002 プロジェクト基盤整備
+### 現在のタスク: 設計の見直し（ADR 0005/0008 の置き換えと管理面の追加）
 
 #### サブタスクチェックリスト
 
-##### フェーズ0: 境界と実装材料の確定
-
-- [x] Plan 0002、関連 ADR（0001・0002・0015・0016）、後続 Plan（0004・0011）、関連 knowhow を読む
-- [x] 前タスクの完了コミットを確認し、遅れていた Progress をアーカイブする
-- [ ] npm パッケージの互換バージョン、Node 24 イメージ digest、rx-instagram の CI 4本を実物で確認する
-- [x] Plan 0002 の責務境界を固定する（Redis サービスは compose に置くが、クライアント実装は Plan 0011。HealthServer は状態注入可能にする）
-
-##### フェーズ1: ツールチェーンと構造ガード
-
-- [ ] package.json・package-lock.json・TypeScript/ESM の最小ディレクトリ構成を作る
-- [ ] tsconfig・Vitest/v8 カバレッジ・oxlint・oxfmt を設定し、npm scripts を揃える
-- [ ] package.json の imports（#core/* 等）が型検査・テスト・ビルド後実行の全経路で解決できることを検証する
-- [ ] core から adapters/infrastructure への import を no-restricted-imports で禁止し、違反 fixture が lint で落ちることを検証する
-
-##### フェーズ2: 実行基盤
-
-- [ ] zod による env 一括検証、Discord の固定上限、.env.example を実装し、欠落・型不正・既定値・空の許可リストをテストする
-- [ ] pino ロガーと子ロガーを実装し、cookie・PIXIV_PHPSESSID の実値がログからマスクされることをテストする
-- [ ] Hono の HealthServer を実装し、/healthz・/readyz・/health・/metrics を listen なしでテストする
-- [ ] discord.js の最小起動経路、clientReady、SIGINT/SIGTERM、unhandledRejection、uncaughtException を実装する
-- [ ] ready 判定を依存注入し、Plan 0002 では Discord 接続状態、Plan 0011 では Redis 状態を追加できる形にする
-
-##### フェーズ3: 配布・運用基盤
-
-- [ ] 非 root・2-stage・digest 固定の Dockerfile、.dockerignore、内部向け HEALTHCHECK を作る
-- [ ] bot + redis:8-alpine（AOF 有効）の docker-compose.yml を作り、ヘルスポートをホストへ公開しない
-- [ ] ci / push-image / release / deploy の GitHub Actions と release-please 設定を移植し、rx-pixiv 用に置換する
-- [ ] CLAUDE.repo.md のコマンド表を実装値に同期し、画像配信方式・ADR 一覧など既知のドキュメントドリフトも直す
-
-##### フェーズ4: 統合検証と品質ゲート
-
-- [ ] npm run build / typecheck / lint / test:coverage を通し、所定のカバレッジ閾値を満たす
-- [ ] 必須 env 欠落時に読める集約エラーを出して exit 1 することをプロセス境界で検証する
-- [ ] docker build と compose 起動を検証し、コンテナ内 /healthz が 200 を返すことを確認する
-- [ ] GitHub Actions の構文・参照をローカル検証し、リポジトリ作成後に ci が緑であることを確認する
-- [ ] ADDF テストスイートを実行し、既知の上流起因1件以外に退行がないことを確認する
-- [ ] コードレビューとドキュメントレビューを実施し、主題内の指摘を修正して全検証を再実行する
-- [ ] コーディング・品質ゲート・タスク総括の知見と Feedback を記録する
-- [ ] Plan 0002 / TODO / Progress を完了状態へ同期し、日本語の規約でコミットする
+- [x] ADR 0014: 画像は画像プロキシの URL を埋め込む（ADR 0005 を置き換え）
+- [x] ADR 0015: 管理コマンドと濫用対策
+- [x] ADR 0016: 永続が要る状態のために Redis を導入する（ADR 0008 を置き換え）
+- [x] ADR 0006 の補修（link_only と skip の矛盾・既知の限界2件）
+- [x] REQUIREMENTS の補修（既存 Bot を使わない理由・FR-6 追加・部分失敗仕様・スケール再検討トリガー・sl スパイク）
+- [x] ARCHITECTURE の更新（構成図・ディレクトリ・データフロー・メディア・状態の置き場所・設定・差分表）
+- [x] Plan 0002/0003/0004/0005/0006/0007/0008/0009/0010 の改訂、Plan 0011（管理面）の新規起票
+- [x] TODO / docs/adr/README / README の更新
+- [x] 知見の追記（knowhow に項目4・5 を追加）
+- [x] lint・リンク検査
+- [x] コミット
 
 #### 日記
 
-##### 2026-08-10 — Plan 0002 の実行単位を確定
+##### 2026-08-10 — ADR 0005 の前提が誤りだったと判明
 
 **やったこと**:
-Plan 0002 と関連 ADR・後続 Plan・knowhow を突合し、ツールチェーン、実行基盤、
-配布基盤、品質ゲートの4フェーズへ分解した。前タスクはコミット済みだったため、
-チェックだけ遅れていた Progress を完了扱いでアーカイブした。
+オーナーから「画像をアップロードせず URL を直接埋め込めないか / phixiv を使えないか」という
+問いを受けて実測した。結果、**私の ADR 0005 は誤った前提の上に建っていた**。
+
+- `MediaGalleryItem.setSpoiler(true)` は**外部 URL でも効く**。
+  「添付だけがスポイラーできる」は v1 Embed に限った話で、Components V2 には当てはまらない
+- `https://phixiv.net/i/<pximg のパス>` は実際に JPEG を返す（master1200 / 646KB）
+- thelaao/phixiv は Rust・Dockerfile 同梱・pixiv トークン不要・自前ホスト可能
 
 **今の見立て**:
-実装方針の確信度は高い。唯一混ざりやすい Redis の責務は、Plan 0002 では
-compose サービスと将来拡張可能なヘルス状態まで、クライアントと永続リポジトリは
-Plan 0011 とする。許可リストは Plan 記載どおり「空 = 全許可」で進める。
+オーナー案が厳密に優れている。帯域が不要になり、配信主体にならず、スポイラーは効く。
+副次的に、前回私が挙げた懸念1（濫用による帯域増幅）と懸念2（添付の永続性・
+Bot が R-18 のアップロード主体になる Discord ToS リスク）が**両方とも消える**。
 
 **次の自分へ**:
-最初に npm の互換バージョン、Node イメージ digest、rx-instagram の CI 実物を確認する。
-その後、package.json とツール設定を同時に作り、imports とレイヤ禁止規則を先に通す。
+ADR 0005 → 0014 で置換、ADR 0008 → 0016 で置換（Redis 導入）。
+Plan 0006 は `PximgFetcher`（バイト取得）が不要になるので大幅改訂。
+`attachmentLimit.ts` と `AttachmentUrlCache` も不要になる。
 
 **気になっていること**:
-GitHub の t1nyb0x/rx-pixiv が未作成なら、Actions のリモート実行だけは確認できない。
-ローカル実装と検証は止めず、リポジトリ作成後に最後の完了条件を確認する。
+- phixiv 依存は「単一障害点を中核に置かない」という自分の原則と衝突する。
+  `PXIMG_PROXY_BASE_URL` を env にし、**自前ホストへ切り替えられる**ことで緩和する
+  （phixiv は Dockerfile 同梱なので自前ホストのコストが低い）
+- 最終手段として添付方式を `IMediaFetcher` の別実装として残すかは要判断
+
+##### 2026-08-10 — 設計の見直し完了
+
+**やったこと**:
+ADR を3本追加（0014 画像プロキシ URL / 0015 管理コマンド / 0016 Redis）し、
+ADR 0005 と 0008 を Superseded にした。ADR 0006 の自己矛盾（`link_only` は告知するのに
+`skip` は告知しない理由）を確信度の差として明文化し、既知の限界2件
+（`Manage Messages` 無しでは Discord 自身が OGP を展開する／R-18 の写像だけは
+実データで検証できない）を追記した。Plan は9本を改訂し、0011 を新規起票した。
+
+**今の見立て**:
+オーナーの指摘で設計が明確に良くなった。ADR 0005 を採ったままだったら、
+帯域増幅・添付の永続性・Bot が R-18 の配信主体になる Discord ToS リスク・
+削除要請への対応不能、の4つを抱えたまま実装に入っていた。
+
+自分の失敗の型は「**却下理由を実測しなかった**」こと。
+採用案は実装で嫌でも検証されるが、却下案は二度と検証されない。
+`Rejected alternatives` に書いた「A だけが X を実現できる」型の主張は、
+他の選択肢**すべて**を検証しないと成立しない。knowhow の項目4に書いた。
+
+**次の自分へ**:
+Plan 0002（基盤整備）から。ただし TODO の並列化メモのとおり、
+**Plan 0011 を Plan 0007 より先に片付けるほうが `MessageHandler` の衝突が小さい**。
+Plan 0005 のフェーズ0（R-18 スパイク）は相変わらず最初にやること。
+`sl >= 4` の閾値も未検証の仮置きなので、同じスパイクで潰す。
+
+**気になっていること**:
+- 画像プロキシが phixiv 依存になった。`PXIMG_PROXY_BASE_URL` で自前ホストに逃げられる
+  設計にしたが、公開 phixiv の実際の障害率は運用してみないと分からない（要件 Q-6）
+- 展開拒否リストを Redis にするか JSON ファイルにするかは僅差。
+  コンテナを増やしたくない事情があればファイルで足りる（ADR 0016 の Rejected alternatives）
+- `t1nyb0x/rx-pixiv` が GitHub にまだ無い。相変わらず push できない

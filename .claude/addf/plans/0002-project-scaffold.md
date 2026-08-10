@@ -1,6 +1,6 @@
 # Plan 0002: プロジェクト基盤整備（ツールチェーン・CI・Docker・設定・ロガー・ヘルス）
 
-## 実装状況: 未着手
+## 実装状況: 進行中（2026-08-10）
 
 owner_feedback: 不要
 
@@ -61,6 +61,8 @@ edge: derived-from 0001
 - Hono + `@hono/node-server`。`/healthz`（常に200）、`/readyz`、`/health`、`/metrics`
 - **ポートを外部公開しない**。Docker ネットワーク内に留める
 - `honoApp.request()` で listen せずにテストできる形にする
+- readiness の状態は外から注入できる形にする。本 Plan では Discord 接続状態を判定し、
+  Plan 0011 で Redis 接続状態を追加する（Redis クライアント自体は本 Plan では実装しない）
 
 ### 項目5: 最小の起動経路
 
@@ -78,6 +80,7 @@ edge: derived-from 0001
 - docker-compose は bot + **redis**（`redis:8-alpine`、`--appendonly yes`）。
   [ADR 0008](../../../docs/adr/0008-in-memory-cache.md) は Redis 不採用としていたが、
   [ADR 0016](../../../docs/adr/0016-redis-for-persistent-state.md) で置き換えられた
+  （本 Plan はサービス定義まで。Redis クライアントとリポジトリは Plan 0011）
 - ワークフロー4本を rx-instagram から移植: `ci` / `push-image`（GHCR）/
   `release`（release-please）/ `deploy`（HMAC 署名 webhook）
 - `ci` は Node 24、`npm ci` → `oxlint` → `oxfmt --check` → `tsc --noEmit` →
@@ -87,6 +90,7 @@ edge: derived-from 0001
 
 - **対象**: `CLAUDE.repo.md`
 - ビルド／Lint／テストコマンド表を確定値で埋める
+- 画像配信方式・ADR 一覧など、実装時点で判明している既存記述のドリフトも合わせて直す
 
 ## 影響範囲
 

@@ -9,7 +9,7 @@
 
 | 優先度 | Phase | 計画ファイル | 状態 |
 |---|---|---|---|
-| 1 | 0002 | [プロジェクト基盤整備](.claude/addf/plans/0002-project-scaffold.md) | 未着手 |
+| 1 | 0002 | [プロジェクト基盤整備](.claude/addf/plans/0002-project-scaffold.md) | 進行中（2026-08-10） |
 | 2 | 0003 | [ドメインモデルと URL 検出](.claude/addf/plans/0003-domain-and-url-detection.md) | 未着手（0002 依存） |
 | 2 | 0004 | [HTTP 基盤・レート制御・キャッシュ](.claude/addf/plans/0004-http-ratelimit-cache.md) | 未着手（0002 依存・0003 と並列可） |
 | 3 | 0005 | [Ajax ソースとフォールバック連鎖](.claude/addf/plans/0005-ajax-source-and-chain.md) | 未着手（0003+0004 依存・**R-18 スパイクを内包**） |
