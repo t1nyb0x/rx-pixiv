@@ -218,7 +218,7 @@ rx-pixiv は、この欠けたプレビューを Bot 側で補う。
 | C-2 | **R-18 作品でも `/ajax/illust/{id}` は 200 を返し `xRestrict` が取れる**（実測済み）。取得できないのは**画像だけ**で、`/ajax/illust/{id}/pages` が 404 になる。したがって年齢判定に認証は不要 |
 | C-3 | 複数ページ作品は最大200ページ。Discord は 1メッセージあたり embed 10・MediaGallery item 10 |
 | C-4 | `MediaGalleryItem` の `spoiler` は**外部 URL に対しても効く**（添付に限らない）。ただし v1 Embed では効かない |
-| C-5 | phixiv の本家（HazelTheWitch/phixiv）は 2026-06 にアーカイブ済み。フォーク（thelaao/phixiv）が稼働中で `/api/info` は廃止済み。**画像プロキシ `/i/<path>` は稼働を実測で確認済み**。Rust 製・Dockerfile 同梱で自前ホスト可能 |
+| C-5 | phixiv の本家（HazelTheWitch/phixiv）は 2026-06 にアーカイブ済み。フォーク（thelaao/phixiv）が稼働中で `/api/info` と `/api/v1/statuses/` は使えない。**OGP は bot UA でのみ返る**。画像プロキシ `/i/<path>` は R-18 を含めて実バイトを返す。Rust 製・Dockerfile 同梱で自前ホスト可能 |
 | C-6 | **単一インスタンス運用を前提とする。** シャーディングもマルチプロセスも想定しない |
 | C-7 | 実行環境は WSL2 / Linux コンテナ |
 
@@ -243,7 +243,8 @@ rx-pixiv は、この欠けたプレビューを Bot 側で補う。
 | 同上（R-18 作品） | **HTTP 404**・`error:true`・`body:[]`。作品は実在するので `not_found` に写像してはならない |
 | `GET /ajax/illust/{id}`（R-18） | HTTP 200・`error:false`・**`xRestrict:1`**・`aiType:2` |
 | `sl`（sanity level） | **全年齢作品でも 6**。センシティブ判定には使えない |
-| phixiv（R-18 作品） | **og:image タグが無い**。R-18 画像の代替供給源にならない |
+| phixiv `/artworks/{id}`（**bot UA 必須**） | 通常の UA では 307 で pixiv へ転送される。bot UA なら OGP を返し、**R-18 でも `og:image` がある**。画像 URL は `https://phixiv.net/i/...` で UA を問わず実バイトを返す |
+| phixiv `/api/v1/statuses/{id}` | **要求した ID と異なる作品を返す**。使用しない |
 | `GET /ajax/novel/{id}` | 無認証で `content`（本文全文）・`coverUrl`・`xRestrict`・`tags` を返す |
 | `GET /ajax/user/{id}?full=1` | 無認証で `name`/`imageBig`/`comment`/`webpage`/`social` を返す |
 | `GET /ajax/illust/1`（存在しない） | HTTP 404 |

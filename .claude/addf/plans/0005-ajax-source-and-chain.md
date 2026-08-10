@@ -40,7 +40,7 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 | 同 `body.urls` | 5キーとも **null** | 5キーとも **null** |
 | `/ajax/illust/{id}/pages` | 200・URL 全て非 null | **404**・`error:true`・`body:[]` |
 | `sl` | **6** | **6** |
-| phixiv `/artworks/{id}` | 稼働 | **og:image 無し** |
+| phixiv `/artworks/{id}`（bot UA） | 稼働・og:image あり | **稼働・og:image あり**（当初「無し」と誤記録。項目3 で訂正） |
 
 **実装に直結する3つの帰結:**
 
@@ -94,7 +94,11 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 - `PHIXIV_BASE_URL`（既定 `https://phixiv.net`）を叩く。
   **`/api/info` は廃止済みのため使わない**。OGP 形の取得として実装する
 - `R-18` タグの有無から `confidence: "inferred"` の年齢区分を導く
-- **R-18 作品には og:image が無い**（実測済み）。R-18 画像の代替供給源にはならない
+- **bot UA（`Discordbot/2.0` 等）が必須**。通常の UA では 307 で pixiv へ転送される
+- **R-18 作品でも og:image が返る**。Ajax の `/pages` が 404 になる R-18 において、
+  **無認証で画像 URL を得られる唯一の経路**になる
+- `/api/v1/statuses/{id}` は**要求と異なる作品を返す**ため使わない
+- 1リクエストにつき画像1枚（`multiPage: false`）
 - **PHPSESSID を送らない**
 
 ### 項目4: OGP スクレイプ（三次）

@@ -45,6 +45,22 @@ export abstract class BasePixivSource implements IPixivSource {
   ): Promise<Result<PixivWork, FetchError>>;
 
   /**
+   * 本文をそのまま取得する（HTML 経路用）。
+   *
+   * `getJson` と同じく、HTTP レイヤの失敗はそのまま透過する。
+   */
+  protected async getText(url: string, context: FetchContext): Promise<Result<string, FetchError>> {
+    const response = await this.httpClient.request({
+      url,
+      method: "GET",
+      headers: this.#headers,
+      signal: context.signal,
+    });
+    if (!response.ok) return response;
+    return ok(response.value.body);
+  }
+
+  /**
    * JSON を取得し、スキーマで検証して返す。
    *
    * HTTP レイヤの失敗（`not_found` / `rate_limited` / `timeout` 等）は
