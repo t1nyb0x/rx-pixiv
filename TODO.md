@@ -3,15 +3,14 @@
 `.claude/addf/plans/` の完了状態・優先度をトラックする。
 `.claude/addf/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: Plan 0003（ドメインモデルと URL 検出）
+## 現在のフェーズ: Plan 0004（HTTP 基盤・レート制御・キャッシュ）着手待ち
 
 ## バックログ
 
 | 優先度 | Phase | 計画ファイル | 状態 |
 |---|---|---|---|
-| 2 | 0003 | [ドメインモデルと URL 検出](.claude/addf/plans/0003-domain-and-url-detection.md) | 進行中（2026-08-10） |
-| 2 | 0004 | [HTTP 基盤・レート制御・キャッシュ](.claude/addf/plans/0004-http-ratelimit-cache.md) | 未着手（着手可能・0003 と並列可） |
-| 3 | 0005 | [Ajax ソースとフォールバック連鎖](.claude/addf/plans/0005-ajax-source-and-chain.md) | 未着手（0003+0004 依存・**R-18 スパイクを内包**） |
+| 2 | 0004 | [HTTP 基盤・レート制御・キャッシュ](.claude/addf/plans/0004-http-ratelimit-cache.md) | 未着手（着手可能） |
+| 3 | 0005 | [Ajax ソースとフォールバック連鎖](.claude/addf/plans/0005-ajax-source-and-chain.md) | 未着手（0004 依存・**R-18 スパイクを内包**） |
 | 3 | 0006 | [NSFW ゲートとメディア URL 組み立て](.claude/addf/plans/0006-nsfw-gate-and-media.md) | 未着手（0003+0005 依存） |
 | 4 | 0007 | [Discord レンダリングと messageCreate 配線](.claude/addf/plans/0007-rendering-and-wiring.md) | 未着手（0005+0006 依存） |
 | 4 | 0011 | [管理コマンド・濫用対策・Redis 永続化](.claude/addf/plans/0011-admin-and-abuse-control.md) | 未着手（着手可能・0007 と `MessageHandler` で重なる） |
@@ -21,7 +20,7 @@
 
 ### 並列化のメモ
 
-0003 と 0004 は互いに独立しており、git worktree で並列実装できる。0005 は両方の完了を待つ。
+0003 は完了済み。0005 は 0004 の完了を待つ。
 0011 は 0002 のあと単独で進められるが、`MessageHandler` のゲート順序で 0007 と衝突する。
 **0011 を先に片付けてから 0007 に入るほうが衝突が小さい**（0007 はゲートを前提にできる）。
 
@@ -49,3 +48,4 @@
 |---|---|---|
 | 0001 | [要件定義・アーキテクチャ設計・ADR 整備](.claude/addf/plans/0001-requirements-and-adr.md) | 完了（2026-08-10） |
 | 0002 | [プロジェクト基盤整備](.claude/addf/plans/0002-project-scaffold.md) | 完了（2026-08-10） |
+| 0003 | [ドメインモデルと URL 検出](.claude/addf/plans/0003-domain-and-url-detection.md) | 完了（2026-08-10） |

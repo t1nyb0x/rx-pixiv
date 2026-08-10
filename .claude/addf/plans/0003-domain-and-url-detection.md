@@ -1,6 +1,6 @@
 # Plan 0003: ドメインモデルと URL 検出
 
-## 実装状況: 進行中（2026-08-10）
+## 実装状況: 完了（2026-08-10）
 
 owner_feedback: 不要
 
@@ -92,12 +92,12 @@ Discord の `messageCreate` への配線、作品取得、描画は後続 Plan �
 
 ## 完了条件
 
-- [ ] URL 検出のテーブルテストが全 URL 形と全偽陽性ケースで緑
-- [ ] `UrlDetector` のカバレッジが 95% 以上
-- [ ] `PixivWork` が illust / manga / novel / novel series / user を表現できている
-- [ ] `ContentRating.confidence` が3値（`authoritative` / `inferred` / `unknown`）で定義されている
-- [ ] `src/core/` が `adapters/` `infrastructure/` を import していない（lint で担保）
-- [ ] `UrlDetector` が I/O を一切行わない（`pixiv.me` は解決せず shortlink として返す）
+- [x] URL 検出のテーブルテストが全 URL 形と全偽陽性ケースで緑
+- [x] `UrlDetector` のカバレッジが 95% 以上
+- [x] `PixivWork` が illust / manga / novel / novel series / user を表現できている
+- [x] `ContentRating.confidence` が3値（`authoritative` / `inferred` / `unknown`）で定義されている
+- [x] `src/core/` が `adapters/` `infrastructure/` を import していない（lint で担保）
+- [x] `UrlDetector` が I/O を一切行わない（`pixiv.me` は解決せず shortlink として返す）
 
 ## AI 実装時間見積もり
 
