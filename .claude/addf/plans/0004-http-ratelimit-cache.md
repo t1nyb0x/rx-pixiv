@@ -47,7 +47,8 @@ HTTP timeout・限定 retry・物理試行ごとの rate limit・経路別 circu
 - ホスト別トークンバケット。`www.pixiv.net` 1rps/burst3
 - 環境変数 `PIXIV_RPS` で調整可能
 - `i.pximg.net` 向けの枠は [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) により
-  通常経路では不要（Bot が画像を取得しないため）。`MEDIA_FALLBACK=attachment` のときだけ使う
+  通常経路では不要（Bot が画像を取得しないため）。将来、添付fallbackを別Planで
+  実装する場合だけ専用枠を追加する
 
 ### 項目3: サーキットブレーカ
 

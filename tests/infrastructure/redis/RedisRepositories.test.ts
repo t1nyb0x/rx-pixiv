@@ -5,6 +5,7 @@ import {
   RedisBanRepository,
   RedisBlockRepository,
   RedisCooldownStore,
+  RedisReplyRepository,
 } from "#infrastructure/redis/RedisRepositories";
 
 interface SetOptions {
@@ -12,11 +13,17 @@ interface SetOptions {
   readonly expiration?: { readonly type: string; readonly value: number };
 }
 
+interface EvalOptions {
+  readonly keys: readonly string[];
+  readonly arguments: readonly string[];
+}
+
 interface FakeMulti {
   set(key: string, value: string): FakeMulti;
   sAdd(key: string, member: string): FakeMulti;
   del(key: string): FakeMulti;
   sRem(key: string, member: string): FakeMulti;
+  pExpire(key: string, ttlMs: number): FakeMulti;
   exec(): Promise<unknown[]>;
 }
 
@@ -27,14 +34,22 @@ interface FakeMulti {
 class FakeRedis {
   public readonly strings = new Map<string, { value: string; expiresAt?: number }>();
   public readonly sets = new Map<string, Set<string>>();
+  public readonly setExpiries = new Map<string, number>();
   public now = 0;
   public failNext = false;
   public failExecAfterCommit = false;
   public multiCalls = 0;
+  public afterSMembersRead: ((key: string) => Promise<void>) | undefined;
 
-  public sMembers(key: string): Promise<string[]> {
+  public async sMembers(key: string): Promise<string[]> {
     this.#maybeFail();
-    return Promise.resolve([...(this.sets.get(key) ?? [])]);
+    if ((this.setExpiries.get(key) ?? Number.POSITIVE_INFINITY) <= this.now) {
+      this.sets.delete(key);
+      this.setExpiries.delete(key);
+    }
+    const result = [...(this.sets.get(key) ?? [])];
+    await this.afterSMembersRead?.(key);
+    return result;
   }
 
   public get(key: string): Promise<string | null> {
@@ -77,7 +92,37 @@ class FakeRedis {
 
   public del(key: string): Promise<number> {
     this.#maybeFail();
-    return Promise.resolve(this.strings.delete(key) ? 1 : 0);
+    const deleted = this.strings.delete(key) || this.sets.delete(key);
+    this.setExpiries.delete(key);
+    return Promise.resolve(deleted ? 1 : 0);
+  }
+
+  public pExpire(key: string, ttlMs: number): Promise<boolean> {
+    this.#maybeFail();
+    if (!this.sets.has(key) && !this.strings.has(key)) return Promise.resolve(false);
+    this.setExpiries.set(key, this.now + ttlMs);
+    return Promise.resolve(true);
+  }
+
+  public async eval(_script: string, options: EvalOptions): Promise<number> {
+    this.#maybeFail();
+    const [replyKey, tombstoneKey] = options.keys;
+    const [replyMessageId, ttlRaw] = options.arguments;
+    if (
+      replyKey === undefined ||
+      tombstoneKey === undefined ||
+      replyMessageId === undefined ||
+      ttlRaw === undefined
+    ) {
+      throw new Error("invalid eval arguments");
+    }
+    const tombstone = this.strings.get(tombstoneKey);
+    const deleted =
+      tombstone !== undefined &&
+      (tombstone.expiresAt === undefined || tombstone.expiresAt > this.now);
+    await this.sAdd(replyKey, replyMessageId);
+    await this.pExpire(replyKey, Number(ttlRaw));
+    return deleted ? 0 : 1;
   }
 
   public multi(): FakeMulti {
@@ -98,6 +143,10 @@ class FakeRedis {
       },
       sRem: (key: string, member: string) => {
         commands.push(() => this.sRem(key, member));
+        return transaction;
+      },
+      pExpire: (key: string, ttlMs: number) => {
+        commands.push(() => this.pExpire(key, ttlMs));
         return transaction;
       },
       exec: async () => {
@@ -239,6 +288,38 @@ describe("RedisBanRepository", () => {
     redis.failNext = true;
     expect(await repo.find(banRecord.subject)).toEqual(banRecord);
   });
+
+  it("serializes a reload with an owner update so the snapshot cannot overwrite it", async () => {
+    const redis = new FakeRedis();
+    const repo = new RedisBanRepository(redis.asClient());
+    await repo.preload();
+
+    let release!: () => void;
+    let started!: () => void;
+    const startedPromise = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    redis.afterSMembersRead = async (key) => {
+      if (key !== "app:ban:list") return;
+      started();
+      await waiting;
+    };
+
+    const reload = repo.preload();
+    await startedPromise;
+    const newRecord = {
+      ...banRecord,
+      subject: { kind: "user", id: "2" } as const,
+    };
+    const save = repo.save(newRecord);
+    release();
+    await Promise.all([reload, save]);
+
+    expect(await repo.find(newRecord.subject)).toEqual(newRecord);
+  });
 });
 
 describe("RedisBlockRepository", () => {
@@ -296,5 +377,43 @@ describe("RedisCooldownStore", () => {
     const store = new RedisCooldownStore(redis.asClient());
     expect(await store.consume({ kind: "user", id: "1" }, 1_000)).toBe(true);
     expect(await store.consume({ kind: "channel", id: "1" }, 1_000)).toBe(true);
+  });
+});
+
+describe("RedisReplyRepository", () => {
+  it("stores replies with TTL and rejects late additions after deletion", async () => {
+    const redis = new FakeRedis();
+    const repo = new RedisReplyRepository(redis.asClient());
+
+    expect(await repo.add("original", "reply-1", 1_000)).toBe(true);
+    expect(await repo.add("original", "reply-2", 1_000)).toBe(true);
+    expect(await repo.find("original")).toEqual({
+      originalMessageId: "original",
+      replyMessageIds: ["reply-1", "reply-2"],
+    });
+    await repo.markDeleted("original", 1_000);
+    expect(await repo.add("original", "late", 1_000)).toBe(false);
+    expect(await repo.find("original")).toEqual({
+      originalMessageId: "original",
+      replyMessageIds: ["reply-1", "reply-2", "late"],
+    });
+    expect(await repo.remove("original", "reply-1")).toBe(true);
+    expect(await repo.remove("original", "reply-2")).toBe(true);
+    expect(await repo.remove("original", "late")).toBe(true);
+    expect(await repo.find("original")).toBeUndefined();
+  });
+
+  it("expires reply mappings", async () => {
+    const redis = new FakeRedis();
+    const repo = new RedisReplyRepository(redis.asClient());
+    await repo.add("original", "reply", 1_000);
+    redis.now = 1_001;
+    expect(await repo.find("original")).toBeUndefined();
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])("rejects invalid TTL %s", async (ttlMs) => {
+    const repo = new RedisReplyRepository(new FakeRedis().asClient());
+    await expect(repo.add("original", "reply", ttlMs)).rejects.toThrow(RangeError);
+    await expect(repo.markDeleted("original", ttlMs)).rejects.toThrow(RangeError);
   });
 });

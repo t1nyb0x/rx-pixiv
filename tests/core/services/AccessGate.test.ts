@@ -115,6 +115,12 @@ describe("AccessGate.check", () => {
     expect(await gate.check(origin)).toEqual({ allowed: true });
   });
 
+  it("fails closed while Redis is disconnected even if a preload cache exists", async () => {
+    const gate = gateWith({ storeAvailable: () => false });
+    expect(await gate.check(origin)).toEqual({ allowed: false, reason: "store_unavailable" });
+    expect(await gate.isBlocked(artwork)).toBe(true);
+  });
+
   it("still passes when only the cooldown store is unavailable", async () => {
     // クールダウンは安全側の判定に影響しない。
     const gate = gateWith({ cooldowns: failing<ICooldownStore>() });

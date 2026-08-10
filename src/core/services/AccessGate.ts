@@ -31,6 +31,8 @@ export interface AccessGateOptions {
   /** 永続ストアを読めないときに通すか。既定は `false`（フェイルクローズ）。 */
   readonly allowWhenStoreUnavailable?: boolean;
   readonly ownerUserId?: string;
+  /** 永続ストアの接続・preload状態。falseなら既定でフェイルクローズ。 */
+  readonly storeAvailable?: () => boolean;
 }
 
 /**
@@ -52,6 +54,7 @@ export class AccessGate {
   readonly #channelCooldownMs: number;
   readonly #allowWhenStoreUnavailable: boolean;
   readonly #ownerUserId: string | undefined;
+  readonly #storeAvailable: () => boolean;
 
   public constructor(options: AccessGateOptions) {
     this.#bans = options.banRepository;
@@ -63,11 +66,16 @@ export class AccessGate {
     this.#channelCooldownMs = options.channelCooldownMs ?? 5_000;
     this.#allowWhenStoreUnavailable = options.allowWhenStoreUnavailable ?? false;
     this.#ownerUserId = options.ownerUserId;
+    this.#storeAvailable = options.storeAvailable ?? (() => true);
   }
 
   /** URL 検出より前に通す判定。 */
   public async check(origin: MessageOrigin): Promise<GateDecision> {
     const isOwner = this.#ownerUserId !== undefined && origin.userId === this.#ownerUserId;
+
+    if (!this.#storeAvailable() && !this.#allowWhenStoreUnavailable) {
+      return reject("store_unavailable");
+    }
 
     // 1. 禁止（利用者・サーバー）
     try {
@@ -100,6 +108,7 @@ export class AccessGate {
    * 拒否すると決めている作品に対して pixiv へリクエストを飛ばさない。
    */
   public async isBlocked(ref: PixivRef, authorPixivUserId?: string): Promise<boolean> {
+    if (!this.#storeAvailable()) return !this.#allowWhenStoreUnavailable;
     try {
       if (ref.kind === "artwork") {
         if (await this.#blocks.find({ kind: "artwork", id: ref.id })) return true;

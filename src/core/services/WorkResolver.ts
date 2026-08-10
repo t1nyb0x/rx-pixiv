@@ -17,6 +17,8 @@ export interface WorkResolverOptions {
   readonly source: IPixivSource;
   readonly cache: IWorkCache;
   readonly shortlinkResolver?: IShortlinkResolver;
+  /** shortlink解決後・上流取得前の展開拒否ゲート。falseなら一切取得しない。 */
+  readonly beforeFetch?: (ref: PixivRef) => Promise<boolean>;
   /** 1 URL あたりの総予算（ADR 0003）。省略時は呼び出し側の signal に従う。 */
   readonly totalBudgetMs?: number;
 }
@@ -31,12 +33,14 @@ export class WorkResolver {
   readonly #source: IPixivSource;
   readonly #cache: IWorkCache;
   readonly #shortlinkResolver: IShortlinkResolver | undefined;
+  readonly #beforeFetch: ((ref: PixivRef) => Promise<boolean>) | undefined;
   readonly #totalBudgetMs: number | undefined;
 
   public constructor(options: WorkResolverOptions) {
     this.#source = options.source;
     this.#cache = options.cache;
     this.#shortlinkResolver = options.shortlinkResolver;
+    this.#beforeFetch = options.beforeFetch;
     this.#totalBudgetMs = options.totalBudgetMs;
     if (
       this.#totalBudgetMs !== undefined &&
@@ -58,6 +62,10 @@ export class WorkResolver {
     if (!resolvedRef.ok) return resolvedRef;
 
     const target = resolvedRef.value;
+
+    if (this.#beforeFetch !== undefined && !(await this.#beforeFetch(target))) {
+      return err({ kind: "blocked" });
+    }
 
     const cached = await this.#cache.get(target);
     if (cached !== undefined) return cached;

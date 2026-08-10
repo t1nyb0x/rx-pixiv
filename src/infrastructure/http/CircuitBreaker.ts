@@ -156,6 +156,7 @@ export function classifyFetchError(error: FetchError): CircuitOutcome {
       return "failure";
     case "not_found":
     case "auth_required":
+    case "blocked":
     case "unsupported":
       return "healthy";
   }

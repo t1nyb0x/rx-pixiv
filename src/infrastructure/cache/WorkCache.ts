@@ -36,6 +36,10 @@ export class WorkCache implements IWorkCache {
     });
   }
 
+  public get size(): number {
+    return this.#works.size + this.#users.size + this.#negatives.size;
+  }
+
   public async get(ref: PixivRef): Promise<CachedWork | undefined> {
     const key = pixivRefKey(ref);
     return this.#negatives.get(key) ?? this.#users.get(key) ?? this.#works.get(key);

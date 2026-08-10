@@ -15,6 +15,7 @@
 |---|---|---|
 | [plans-decay-under-measurement.md](plans-decay-under-measurement.md) | 実測駆動の開発では計画文書が腐る — 3回起きた「計画が現実に追い越される」型と扱い方 | 計画, ADR, Plan, 実測, 仮説, Superseded, 訂正, 却下理由, 設計フェーズ |
 | [pixiv-ajax-schema-pitfalls.md](pixiv-ajax-schema-pitfalls.md) | pixiv Ajax API のスキーマ設計 — null と欠落の違い・エンドポイント別の形の差・数値フラグの3値目・観測ツールの信頼度 | pixiv, Ajax API, zod, スキーマ, fixture, 実測, null, maxXRestrict, aiType, exactOptionalPropertyTypes, 非公開API |
+| [renderer-safe-degradation.md](renderer-safe-degradation.md) | レンダラの能力差は安全な縮退で吸収し、最終payloadの負例で固定する | Discord, renderer, Components V2, embed, spoiler, link_only, payload, Redis Set, 返信追跡 |
 | [design-phase-spike-and-numbering.md](design-phase-spike-and-numbering.md) | 設計フェーズの5つの型 — 実測で前提を潰す・Proposed で残す・採番衝突・**却下理由こそ実測対象**・置換 ADR は残す | 設計フェーズ, 要件定義, ADR, Proposed, Superseded, スパイク, 実測, 採番, 相互参照, Rejected alternatives, 却下理由, ドキュメントレビュー, 骨格プランニング |
 | [typescript-service-scaffold-boundaries.md](typescript-service-scaffold-boundaries.md) | TypeScript サービス基盤の解決経路・設定境界・配布順序を負例で固定する | TypeScript, ESM, package imports, zod, env, oxlint, workflow_call, release-please, CI/CD |
 | [upstream-protection-composition.md](upstream-protection-composition.md) | 上流保護は独立クラスではなく物理試行と論理経路へ合成する | undici, retry, rate limit, circuit breaker, timeout, Node timer, TTL, LRU |

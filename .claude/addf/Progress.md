@@ -92,10 +92,12 @@
 #### サブタスクチェックリスト
 
 - [x] Plan 0007と統合対象のPlan 0011残作業を読み、実装境界を同期
-- [ ] `MessageComposer` とレンダラ2種
-- [ ] `OwnerCommandHandler` / `MessageHandler` とゲート順序
-- [ ] reply map、Redis connect/preload/health、全層DI
-- [ ] 統合テスト・目視確認・品質ゲート・レビュー
+- [x] `MessageComposer` とレンダラ2種
+- [x] `OwnerCommandHandler` / `MessageHandler` とゲート順序
+- [x] reply map、Redis connect/preload/health、全層DI
+- [x] 統合テスト・品質ゲート（490テスト、coverage基準、build/lint/typecheck/format）
+- [x] コード・文書・ADDF分離の最終再レビュー（Critical / Warning なし）
+- [ ] 実チャンネルで複数ページ作品を目視確認 <!-- human-judgment -->
 
 ### 直前のタスク（完了）: Plan 0005 Ajax ソースとフォールバック連鎖
 
@@ -130,15 +132,15 @@
 **項目6: 任意の pixiv セッション**
 - [x] v1 では `PIXIV_PHPSESSID` を受け付けず、`PixivSession` も実装しないと決定
 
-### Plan 0011（管理コマンド・濫用対策・Redis）— 一部完了
+### Plan 0011（管理コマンド・濫用対策・Redis）— 完了
 - [x] `AccessGate`（ゲート順序・フェイルクローズ）
 - [x] `parseOwnerCommand` / `chunkForDiscord`（純粋なコマンド解釈）
 - [x] `ICooldownStore` ポートとインメモリ実装3種
 - [x] Redis 実装（`redis@5` を追加。接続・リポジトリ2種・クールダウン）
 - [x] `OwnerCommandService`（コマンド実行・discord.js 非依存）
-- [ ] Redis connect/preload と health state への実行時DI
-- [ ] コマンド結果の reply map
-- [ ] `OwnerCommandHandler` / `MessageHandler`（Plan 0007 と同時に行う）
+- [x] Redis connect/preload と health state への実行時DI
+- [x] コマンド結果の reply map
+- [x] `OwnerCommandHandler` / `MessageHandler`（Plan 0007 と統合）
 
 **仕上げ**
 - [x] `.env.example` に Plan 0005 で増える変数を追加
@@ -598,3 +600,52 @@ Plan 0007の関連knowhowと直近の日記を読み、`MessageHandler` のゲ�
 
 **気になっていること**:
 取得経路別タイムアウトは型で設定可能にしたが、実行時DIはPlan 0007で初めて行う。
+
+##### 2026-08-11 — Plan 0007 実装と自動統合テスト
+
+**やったこと**:
+Discord非依存の `MessageComposer`、Components V2 / Embedレンダラ、
+`OwnerCommandHandler` / `MessageHandler`、Redis返信追跡を実装した。
+`src/index.ts` ではRedis connect/preload、AccessGate、取得chain、NSFW判定、renderer、
+health、messageCreate/messageDeleteを手動DIで接続した。Plan 0011の残作業も同時に完了した。
+
+統合テストでは全年齢/R-18/判定不能を両レンダラで検証し、`link_only` からの
+メタデータ漏洩、上限超過、suppress失敗、preload失敗時のフェイルクローズ、
+返信map保存失敗時の表示継続を固定した。1つの元メッセージに複数URLがある場合を考慮し、
+返信mapは単一IDではなくRedis Setで全返信を24時間追跡する設計にした。
+
+**今の見立て**:
+実装と自動検証は完了。Plan 0007の唯一の残作業は、実Discordチャンネルで複数ページ作品を
+表示して確認する human-judgment。資格情報を使う実環境確認はオーナー側で行う。
+
+**次の自分へ**:
+全品質ゲートとコード・文書・ADDF分離レビューを完了し、指摘を解消してcommit/pushする。
+その後、オーナーへ目視確認手順と未完了条件を引き渡す。
+
+**気になっていること**:
+- Embed退避経路では外部画像へDiscordのspoiler指定を安全に付けられないため、
+  spoiler判定時は画像とメタデータを省き、定型文とリンクだけに縮退させている
+- Redis不通時もDiscord接続は続けるが、既定denyでは展開を止める。READMEやコメントで
+  「全年齢だけ動く」と誤解させないこと
+
+##### 2026-08-11 — Plan 0007 レビュー指摘を安全境界へ反映
+
+**やったこと**:
+レビューで見つかったユーザープロフィール最近作の個別spoiler消失と、`link_only`返信URLの
+Discord自動OGPを修正した。選択後メディアへ元indexを保持し、Components V2は個別spoiler、
+Embedは安全に表現できない制限付き画像を省略する。`link_only`には`SuppressEmbeds`を付けた。
+
+管理コマンド候補の通常URL処理へのfall-throughを止め、全チャンク返信を追跡対象にした。
+返信追跡は削除tombstoneとRedis Luaのadd-if-activeで競合を閉じ、遅延返信を即削除する。
+削除失敗IDはSetに残す。ban/blockのpreloadと更新は直列化し、切断前preloadの結果は世代番号で
+無効化した。全品質ゲートは490テストで通過した。
+
+**今の見立て**:
+自動検証対象は完了。最終再レビューと実チャンネル目視だけが残る。
+
+**次の自分へ**:
+再レビューでCritical/Warningが無ければcommit/pushし、GitHub Actionsを確認する。
+
+**気になっていること**:
+実チャンネル目視には有効なDiscord tokenと運用Redisが必要で、リポジトリ内の自動検証では
+代替できない。Planを完了にせずhuman-judgmentとして引き継ぐ。

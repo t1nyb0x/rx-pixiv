@@ -71,6 +71,7 @@ describe("selectMedia", () => {
     };
     const result = selectMedia([page(0), page(1), page(2)], 3, mixed);
     expect(result.urls).toHaveLength(2);
+    expect(result.sourceIndexes).toEqual([0, 2]);
     expect(result.omitted).toBe(1);
   });
 

@@ -12,9 +12,8 @@ export interface RedisConnectionOptions {
 /**
  * Redis クライアントの薄い包み（ADR 0016）。
  *
- * **接続できなくても起動は続行する。** Discord には繋がるので、
- * 全年齢作品の展開は動く。禁止・展開拒否を読めない間はゲートが
- * フェイルクローズし、`/readyz` が 503 を返す。
+ * **接続できなくても起動は続行する。** Discord には接続するが、禁止・展開拒否を
+ * 読めない間は既定でゲートがフェイルクローズし、`/readyz` が 503 を返す。
  */
 export class RedisConnection {
   readonly #client: RedisClientType;

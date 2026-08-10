@@ -1,9 +1,8 @@
 # Plan 0011: 管理コマンド・濫用対策・Redis 永続化
 
-## 実装状況: 一部完了（残り: runtime配線・返信map・Discord handler統合）
+## 実装状況: 完了（2026-08-11）
 
-<!-- AccessGate・コマンド解釈/実行、インメモリ実装、Redis接続とban/block/cooldownは完了。
-     index.tsでの接続/preload/health配線、reply map、Discord handler統合が残る。 -->
+<!-- Plan 0007でruntime配線・返信map・Discord handler統合まで完了。 -->
 
 owner_feedback: 不要
 
@@ -30,9 +29,8 @@ edge: blocked-by 0002
 
 ## 現状の挙動
 
-`AccessGate`、管理コマンドの解釈・実行サービス、インメモリ実装、Redis接続と
-ban/block/cooldownリポジトリは実装済み。ただし `src/index.ts` へ未配線のため、
-Bot上の管理コマンド・永続ゲート・Redis healthはまだ動作しない。
+`AccessGate`、管理コマンド、インメモリ/Redisリポジトリ、起動時preload、
+永続ゲート、返信map、Discord handler、Redis healthを実装・配線済み。
 
 ## 変更内容（項目・フェーズ）
 
@@ -49,7 +47,7 @@ Bot上の管理コマンド・永続ゲート・Redis healthはまだ動作し�
 - **対象**: `src/core/ports/{IBanRepository,IBlockRepository}.ts`、
   `src/infrastructure/redis/Redis*Repository.ts`
 - 禁止（`app:ban:*`）・展開拒否（`app:block:*`）・クールダウン（`app:cooldown:*`）を実装済み。
-  返信マップ（`app:reply:*`）は Plan 0007 の返信追跡と合わせて実装する
+  返信マップ（`app:reply:*`）は Plan 0007 の返信追跡と合わせて実装済み
 - **禁止と展開拒否は起動時に全件プリロード**し、変更時に更新する。
   毎メッセージで Redis に往復しない
 - ポートは `core/ports/` に置き、ファイル方式へ戻せる余地を残す
@@ -96,8 +94,8 @@ Bot上の管理コマンド・永続ゲート・Redis healthはまだ動作し�
 `src/core/ports/`（ポート2つ追加）、`docker-compose.yml`、`.env.example`、
 Discord の intent 設定。
 
-残る実行時DI・reply map・Discord handlerは、同じ境界を触る
-[Plan 0007](0007-rendering-and-wiring.md) に統合して完了させる。
+実行時DI・reply map・Discord handlerは、同じ境界を触る
+[Plan 0007](0007-rendering-and-wiring.md) で統合して完了した。
 
 ## テスト方針
 
@@ -108,29 +106,30 @@ Discord の intent 設定。
   `allow` に切り替えたときは展開されること
 - **順序テスト**: 禁止された利用者のメッセージで `UrlDetector` が**呼ばれない**こと
   （スパイで検証）。展開拒否された作品で pixiv へのリクエストが**発生しない**こと
-- 起動時プリロードが行われ、以後のメッセージ処理で Redis への往復が発生しないこと
+- 起動時プリロード後、ban/block照合ではRedis往復が発生しないこと。
+  cooldownとreply mapは設計どおりRedisを使う
 
 ## 破壊的変更の許容範囲
 
 なし。`OWNER_USER_ID` は既存の必須設定、`REDIS_URL` は既定値付きの任意設定。
 
-## 要オーナー確認
+## 再検討トリガー
 
-- 展開拒否リストを Redis ではなく JSON ファイルで持つ選択肢も僅差で成立する
-  （[ADR 0016 の Rejected alternatives](../../../docs/adr/0016-redis-for-persistent-state.md)）。
-  コンテナを増やしたくない事情があれば知らせてほしい
+コンテナを増やせない運用事情が生じた場合は、
+[ADR 0016 の Rejected alternatives](../../../docs/adr/0016-redis-for-persistent-state.md) に従い、
+JSONファイル方式への差し替えを別Planで再検討する。
 
 ## 完了条件
 
-- [ ] `!owner/leave <guildId>` でサーバーから離脱できる
-- [ ] `!owner/ban` した利用者のメッセージで **`UrlDetector` が呼ばれない**（スパイで検証）
-- [ ] `!owner/block` した作品 URL で **pixiv へのリクエストが発生しない**（スパイで検証）
-- [ ] 禁止と展開拒否が**プロセス再起動をまたいで残る**
-- [ ] オーナー以外の `!owner/...` に無反応
-- [ ] Redis 読み取り失敗時に `REDIS_DOWN_FALLBACK=deny` で展開されない
-- [ ] Redis に接続できなくても Bot は起動し、`/readyz` が 503 を返す
-- [ ] クールダウン超過時に**何も投稿しない**
-- [ ] 起動時プリロード後、通常のメッセージ処理で Redis への往復が発生しない
+- [x] `!owner/leave <guildId>` でサーバーから離脱できる
+- [x] `!owner/ban` した利用者のメッセージで **`UrlDetector` が呼ばれない**（スパイで検証）
+- [x] `!owner/block` した作品 URL で **pixiv へのリクエストが発生しない**（スパイで検証）
+- [x] 禁止と展開拒否が**プロセス再起動をまたいで残る**
+- [x] オーナー以外の `!owner/...` に無反応
+- [x] Redis 読み取り失敗時に `REDIS_DOWN_FALLBACK=deny` で展開されない
+- [x] Redis に接続できなくても Bot は起動し、`/readyz` が 503 を返す
+- [x] クールダウン超過時に**何も投稿しない**
+- [x] 起動時プリロード後、ban/block照合ではRedisへ往復しない
 
 ## AI 実装時間見積もり
 

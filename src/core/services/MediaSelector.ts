@@ -14,6 +14,8 @@ export interface MediaSelectorOptions {
 
 export interface SelectedMedia {
   readonly urls: readonly string[];
+  /** `urls` の各要素に対応する入力 `pages` のindex。個別ポリシーを失わないために使う。 */
+  readonly sourceIndexes: readonly number[];
   /** 表示できなかった枚数（作品全体に対する不足分）。 */
   readonly omitted: number;
   readonly totalPages: number;
@@ -42,16 +44,20 @@ export function selectMedia(
   const preference = options.variantPreference ?? DEFAULT_VARIANT_PREFERENCE;
 
   const urls: string[] = [];
-  for (const page of pages) {
+  const sourceIndexes: number[] = [];
+  for (const [index, page] of pages.entries()) {
     if (urls.length >= maxPages) break;
     const candidate = pickVariant(page.urls, preference);
     if (candidate === undefined) continue;
     const rewritten = rewriter.rewrite(candidate);
-    if (rewritten !== undefined) urls.push(rewritten);
+    if (rewritten !== undefined) {
+      urls.push(rewritten);
+      sourceIndexes.push(index);
+    }
   }
 
   const total = Math.max(totalPages, pages.length);
-  return { urls, omitted: Math.max(0, total - urls.length), totalPages: total };
+  return { urls, sourceIndexes, omitted: Math.max(0, total - urls.length), totalPages: total };
 }
 
 function normalizeLimit(value: number | undefined, fallback: number, maximum: number): number {

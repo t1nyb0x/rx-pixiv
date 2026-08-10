@@ -51,7 +51,8 @@
 | `app:ban:user:{id}` / `app:ban:guild:{id}` | JSON（理由・日時・実行者）／無期限 |
 | `app:block:list` | Set（`artwork:{id}` / `user:{id}` の索引） |
 | `app:block:artwork:{id}` / `app:block:user:{id}` | JSON（理由・日時）／無期限 |
-| `app:reply:{originMsgId}` | JSON（返信 ID 配列・チャンネル ID）／24h |
+| `app:reply:{originMsgId}` | Set（返信ID）／24h |
+| `app:reply-deleted:{originMsgId}` | 文字列（削除tombstone）／24h |
 | `app:cooldown:user:{id}` / `app:cooldown:channel:{id}` | 文字列／秒単位 TTL |
 
 ### Redis が落ちたときの縮退
@@ -75,7 +76,8 @@
 
 禁止と展開拒否は件数が小さく、変更頻度も低い。
 **起動時に全件をプロセス内へ読み込み、変更時に更新する**。
-毎メッセージで Redis に往復しない。Redis は永続層であり、ホットパスではない。
+ban/block照合では毎メッセージRedisへ往復しない。cooldownとreply mapは短TTLの
+整合性が必要なためRedisを使う。
 
 ## Consequences
 
@@ -98,8 +100,8 @@
 
 - 載せるのは「消えては困る状態」だけに限る。作品メタデータのキャッシュは
   プロセス内 LRU のまま据え置き、Redis をホットパスから外す
-- 起動時プリロードにより、通常運用で Redis への往復はほぼ発生しない。
-  停止しても即座に全機能が止まるわけではない（プリロード済みの内容で動き続けられる設計にする）
+- 起動時プリロードにより、通常運用でban/block照合のRedis往復は発生しない。
+  切断を検知したら古いpreloadを信用せず、既定denyでは再接続・再preloadまで展開を止める
 - Redis の状態を `/health` と `/readyz` に出す
 - `appendonly yes` で永続化する。展開拒否リストの消失は許容できない
 

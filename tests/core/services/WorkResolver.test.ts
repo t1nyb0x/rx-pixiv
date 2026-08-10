@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ShortlinkResolver } from "#adapters/pixiv/shortlink";
 import type { FetchError } from "#core/models/errors";
@@ -155,6 +155,21 @@ describe("WorkResolver", () => {
     expect(result.ok).toBe(true);
     expect(await cache.get(artwork)).toEqual(ok(work));
     expect(await cache.get(shortlink)).toBeUndefined();
+  });
+
+  it("applies the block gate after shortlink resolution but before fetching", async () => {
+    const source = new StubSource(ok(work));
+    const beforeFetch = vi.fn<(ref: PixivRef) => Promise<boolean>>(() => Promise.resolve(false));
+    const resolver = new WorkResolver({
+      source,
+      cache: new MemoryCache(),
+      shortlinkResolver: { resolve: () => Promise.resolve(ok(artwork)) },
+      beforeFetch,
+    });
+
+    await expect(resolver.resolve(shortlink, signal())).resolves.toEqual(err({ kind: "blocked" }));
+    expect(beforeFetch).toHaveBeenCalledWith(artwork);
+    expect(source.calls).toBe(0);
   });
 
   it("propagates a shortlink resolution failure without fetching", async () => {

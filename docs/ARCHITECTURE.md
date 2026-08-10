@@ -110,13 +110,19 @@ src/
 │   │   ├── IMediaFetcher.ts
 │   │   ├── IBanRepository.ts
 │   │   ├── IBlockRepository.ts
+│   │   ├── ICooldownStore.ts
+│   │   ├── IGuildAdmin.ts
+│   │   ├── IReplyRepository.ts
 │   │   └── IWorkCache.ts
 │   └── services/
 │       ├── UrlDetector.ts            # 純粋: string -> PixivRef[]
 │       ├── WorkResolver.ts           # キャッシュ -> 経路連鎖 -> PixivWork
 │       ├── NsfwPolicy.ts             # 年齢区分 × チャンネル -> Decision
 │       ├── MediaSelector.ts          # ページ・サイズ変種の選択
-│       └── MessageComposer.ts        # PixivWork + Decision -> RenderPlan
+│       ├── MessageComposer.ts        # PixivWork + Decision -> RenderPlan
+│       ├── AccessGate.ts             # ban・許可list・cooldown・block
+│       ├── OwnerCommandService.ts
+│       └── ownerCommand.ts            # 管理コマンドの純粋parser
 ├── adapters/
 │   ├── pixiv/
 │   │   ├── BasePixivSource.ts
@@ -146,12 +152,11 @@ src/
 │   ├── cache/{LruTtlCache,WorkCache}.ts
 │   ├── redis/
 │   │   ├── client.ts                 # 接続・再接続・縮退
-│   │   ├── RedisBanRepository.ts     # IBanRepository の実装
-│   │   ├── RedisBlockRepository.ts   # IBlockRepository の実装
-│   │   ├── RedisReplyRepository.ts
-│   │   └── RedisCooldownStore.ts
+│   │   ├── RedisRepositories.ts      # ban/block/cooldown/reply の実装
+│   │   └── RedisPreloader.ts         # 接続世代別のban/block preload
+│   ├── memory/MemoryRepositories.ts  # coreサービスのインメモリ実装
 │   ├── session/PixivSession.ts       # 将来候補（v1では資格情報を受け付けず未実装）
-│   └── metrics/Counters.ts
+│   └── metrics/Counters.ts           # Plan 0008予定（現在未実装）
 └── utils/{logger,concurrency,html}.ts
 ```
 
@@ -375,8 +380,10 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 ```
 
 `i.pximg.net` をそのまま埋め込めないのは `Referer` 制約のためだが、
-**ホスト名を替えるだけで解決する**。R-18 / センシティブ時は
-`MediaGalleryItem.spoiler = true` を item 単位で立てる —— これは**外部 URL でも効く**。
+**ホスト名を替えるだけで解決する**。R-18 / センシティブ時はComponents V2の
+`MediaGalleryItem.spoiler = true` をitem単位で立てる —— これは**外部URLでも効く**。
+v1 Embedは外部画像を安全にspoiler化できないため、制限付き画像と機微メタデータを省き、
+spoiler付き正規リンクへ縮退する。
 
 ### プロキシを単一障害点にしない
 
@@ -384,7 +391,7 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 |---|---|---|
 | 1 | 公開 phixiv（`https://phixiv.net/i`） | 既定 |
 | 2 | **自前ホストの phixiv** | `PXIMG_PROXY_BASE_URL` を差し替え。Dockerfile 同梱なので compose に1サービス足すだけ |
-| 3 | 添付方式（旧 ADR 0005 の方式） | `MEDIA_FALLBACK=attachment`。既定は無効 |
+| 3 | 添付方式（旧 ADR 0005 の方式） | 将来候補。現在は未実装・設定入口なし |
 
 第3段のために `IMediaFetcher`（`{ kind: "bytes" } | { kind: "url" }`）を残す。
 
@@ -393,7 +400,8 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 - `regular`（img-master 1200px）を使う。**`original` は使わない**
 - 既定4枚・上限10枚（`MediaGallery` の item 上限）。
   「全 200 ページ中 4 ページを表示」と明記してリンクを添える
-- R-18 でも枚数は減らさない（item 単位でぼかされるため）
+- Components V2ではR-18でも枚数を減らさない（item単位でぼかされるため）。
+  Embed退避経路では安全縮退により制限付き画像を表示しない
 - **部分失敗は捨てない**。一部の URL しか組み立てられなくても、取れた分を表示する
 - 送信前に硬いアサート: MediaGallery item ≤10、Embed ≤10。
   rx-instagram の既知バグ（embed 数超過で未捕捉例外）はここで塞ぐ
@@ -422,7 +430,8 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 |---|---|
 | `app:ban:list` / `app:ban:user:{id}` / `app:ban:guild:{id}` | Set + JSON ／無期限 |
 | `app:block:list` / `app:block:artwork:{id}` / `app:block:user:{id}` | Set + JSON ／無期限 |
-| `app:reply:{originMsgId}` | JSON ／24h |
+| `app:reply:{originMsgId}` | Set（返信ID）／24h |
+| `app:reply-deleted:{originMsgId}` | 文字列（削除tombstone）／24h |
 | `app:cooldown:user:{id}` / `app:cooldown:channel:{id}` | 文字列 ／秒単位 |
 
 - 禁止と展開拒否は**起動時に全件プリロード**し、変更時に更新する。
@@ -462,7 +471,7 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
 | `CIRCUIT_FAILURE_THRESHOLD` / `CIRCUIT_OPEN_MS` | `5` / `120000` | 60秒内の連続失敗数 / 開状態の時間 |
 | `HEALTH_PORT` | `9090` | 公開しない |
 | **`PXIMG_PROXY_BASE_URL`** | `https://phixiv.net/i` | **画像プロキシの向き先。自前ホストへ逃げる口**（[ADR 0014](adr/0014-media-delivery-via-proxy-url.md)） |
-| `MEDIA_FALLBACK` | `none` | `attachment` で旧・添付方式を第3段として有効化 |
+| `MEDIA_FALLBACK` | — | 将来候補。旧・添付方式と設定入口は現在未実装 |
 | **`OWNER_USER_ID`** | （必須） | `!owner/...` コマンドの実行者（[ADR 0015](adr/0015-admin-commands-and-abuse-control.md)） |
 | **`REDIS_URL`** | `redis://localhost:6379` | （[ADR 0016](adr/0016-redis-for-persistent-state.md)） |
 | **`REDIS_DOWN_FALLBACK`** | **`deny`** | Redis 不通時にフェイルクローズ。`allow` で緩められる |
@@ -480,10 +489,11 @@ ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.
   - `pixiv_fetch_total{source,result}` — 「phixiv は死んでいるか」「レート制限を食っているか」
   - `pixiv_fallback_depth_total{depth}`
   - `pixiv_render_total{decision}` — **`skip` の急増は年齢判定の故障を意味する**
-  - `pixiv_bytes_uploaded_total` / `pixiv_cache_{hits,misses}_total` / `pixiv_circuit_state{source}`
+  - `pixiv_media_total{result}` — URL選択・書換えの selected / rejected / omitted 件数
+  - `pixiv_cache_{hits,misses}_total` / `pixiv_circuit_state{source}`
 - **プロセス**: `unhandledRejection` は fatal ログのみで落とさない。
   `uncaughtException` は fatal ログ後 exit(1) して Docker に再起動させる。握り潰さない
-- **ヘルス**: `/healthz`（常に200）、`/readyz`（Discord 未接続なら503）、
+- **ヘルス**: `/healthz`（常に200）、`/readyz`（Discord接続かつRedis connect/preload完了時だけ200）、
   `/health`（uptime・WS ping・ギルド数・キャッシュサイズ・サーキット状態・`authenticated`）
 - **正常終了**: SIGINT/SIGTERM で新規受付を止め、処理中を最大5秒待ち、
   `client.destroy()` → ヘルスサーバ停止 → `agent.close()` → exit 0

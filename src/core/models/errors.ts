@@ -1,6 +1,7 @@
 export type FetchError =
   | { readonly kind: "not_found" }
   | { readonly kind: "auth_required" }
+  | { readonly kind: "blocked" }
   | { readonly kind: "rate_limited"; readonly retryAfterMs?: number }
   | { readonly kind: "upstream_5xx"; readonly status: number }
   | { readonly kind: "timeout" }

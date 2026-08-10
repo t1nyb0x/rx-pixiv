@@ -1,6 +1,6 @@
 # Plan 0007: Discord レンダリングと messageCreate 配線
 
-## 実装状況: 未着手
+## 実装状況: 一部完了（自動検証完了・実チャンネル目視確認待ち）
 
 owner_feedback: 不要
 
@@ -26,9 +26,9 @@ edge: blocked-by 0006
 
 ## 現状の挙動
 
-表示計画・レンダラ・Discord handler・実行時DIは未実装。
-Plan 0011 の core、memory/Redis repository、`OwnerCommandService` は実装済みで、
-残る owner handler・reply map・Redis起動配線も本Planで統合する。
+表示計画・レンダラ・Discord handler・実行時DIを実装済み。
+Plan 0011 の owner handler・reply map・Redis起動配線も本Planで統合し、
+自動テストと品質ゲートを通過した。残る作業は実チャンネルでの目視確認のみ。
 
 ## 変更内容（項目・フェーズ）
 
@@ -57,6 +57,8 @@ Plan 0011 の core、memory/Redis repository、`OwnerCommandService` は実装�
   スポイラーは **item 単位**で立てる（外部 URL でも効く —
   [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md)）
 - v1 Embed は退避経路（`RENDERER=embed`）。**本当に動くものとして維持する**
+- v1 Embed は外部画像を安全にspoiler化できないため、spoiler判定時は画像・メタデータを
+  省いたspoiler付き正規リンクへ縮退する。Components V2は画像itemへspoilerを付ける
 - **送信前に硬いアサート**: gallery item ≤10、embed ≤10。
   rx-instagram の既知バグ（上限超過で未捕捉例外）をここで塞ぐ
 
@@ -110,6 +112,7 @@ Plan 0011 の core、memory/Redis repository、`OwnerCommandService` は実装�
   スナップショットは使わない（リファクタのたびに壊れ、読まれなくなる）
 - 上限超過（gallery item 11件・embed 11件）で例外ではなくアサートエラーになること
 - 小説の抜粋テスト: 独自記法の除去と、`link_only` で抜粋が出ないこと
+- シナリオ2のEmbed期待値は、画像・メタデータ無しのspoilerリンクへの安全縮退とする
 - オーナー以外・ギルド内の `!owner/...` は無反応、DMの全コマンド返信は1900文字で分割
 - ban/block preload完了前・失敗時はURL検出/取得へ進まず、preload後の通常判定では
   Redis往復が発生しないこと
@@ -126,17 +129,17 @@ Plan 0011 の core、memory/Redis repository、`OwnerCommandService` は実装�
 
 ## 完了条件
 
-- [ ] 統合テスト4シナリオが `components_v2` と `embed` の**両方**で緑
-- [ ] `link_only` の payload にタイトル・タグ・作者名・サムネイルが含まれない
-- [ ] `skip` で `channel.send` / `message.reply` が一度も呼ばれない
-- [ ] gallery item・embed の上限超過が未捕捉例外にならない
-- [ ] `suppressEmbeds` が権限不足で失敗しても展開が続行される
-- [ ] ハンドラ内の例外が client へ漏れない
-- [ ] オーナーDMの管理コマンドが動作し、非オーナー/ギルド内では無反応
-- [ ] ban/block preload失敗時にフェイルクローズし、成功後は通常判定でRedisへ往復しない
-- [ ] Redis不通でもBotは起動し、`/readyz` が503、`/health` がRedis状態を返す
-- [ ] reply mapがRedisへ24時間保持され、元メッセージ削除時に返信も削除される
-- [ ] うごイラが「うごイラ（静止画のみ表示）」と明示される
+- [x] 統合テスト4シナリオが `components_v2` と `embed` の**両方**で緑
+- [x] `link_only` の payload にタイトル・タグ・作者名・サムネイルが含まれない
+- [x] `skip` で `channel.send` / `message.reply` が一度も呼ばれない
+- [x] gallery item・embed の上限超過が未捕捉例外にならない
+- [x] `suppressEmbeds` が権限不足で失敗しても展開が続行される
+- [x] ハンドラ内の例外が client へ漏れない
+- [x] オーナーDMの管理コマンドが動作し、非オーナー/ギルド内では無反応
+- [x] ban/block preload失敗時にフェイルクローズし、成功後は通常判定でRedisへ往復しない
+- [x] Redis不通でもBotは起動し、`/readyz` が503、`/health` がRedis状態を返す
+- [x] reply mapがRedisへ24時間保持され、元メッセージ削除時に返信も削除される
+- [x] うごイラが「うごイラ（静止画のみ表示）」と明示される
 - [ ] 実チャンネルで複数ページ作品が表示されることを目視確認 <!-- human-judgment -->
 
 ## AI 実装時間見積もり

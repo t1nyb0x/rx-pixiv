@@ -4,9 +4,19 @@ import { z } from "zod";
 import type { BanRecord, BanSubject, IBanRepository } from "#core/ports/IBanRepository";
 import type { BlockRecord, BlockTarget, IBlockRepository } from "#core/ports/IBlockRepository";
 import type { CooldownSubject, ICooldownStore } from "#core/ports/ICooldownStore";
+import type { IReplyRepository, ReplyRecord } from "#core/ports/IReplyRepository";
 
 const BAN_INDEX = "app:ban:list";
 const BLOCK_INDEX = "app:block:list";
+
+const ADD_REPLY_IF_ACTIVE = `
+redis.call('SADD', KEYS[1], ARGV[1])
+redis.call('PEXPIRE', KEYS[1], ARGV[2])
+if redis.call('EXISTS', KEYS[2]) == 1 then
+  return 0
+end
+return 1
+`;
 
 const banRecordSchema = z.object({
   subject: z.discriminatedUnion("kind", [
@@ -38,6 +48,7 @@ export class RedisBanRepository implements IBanRepository {
   readonly #client: RedisClientType;
   readonly #cache = new Map<string, BanRecord>();
   #loaded = false;
+  readonly #operations = new SerialQueue();
 
   public constructor(client: RedisClientType) {
     this.#client = client;
@@ -45,20 +56,22 @@ export class RedisBanRepository implements IBanRepository {
 
   /** 起動時に一度だけ呼ぶ。読めなければ例外を投げ、呼び出し側が縮退を決める。 */
   public async preload(): Promise<void> {
-    // 再読込に失敗したとき古いcacheを「最新」として使わせない。
-    this.#loaded = false;
-    const keys = await this.#client.sMembers(BAN_INDEX);
-    // 起動時の一度きり。各キーは独立なので並列に取る。
-    const entries = await Promise.all(
-      keys.map(
-        async (key) =>
-          [key, parseBanRecord(await this.#client.get(`app:ban:${key}`), key)] as const,
-      ),
-    );
+    await this.#operations.run(async () => {
+      // 再読込に失敗したとき古いcacheを「最新」として使わせない。
+      this.#loaded = false;
+      const keys = await this.#client.sMembers(BAN_INDEX);
+      // 起動時の一度きり。各キーは独立なので並列に取る。
+      const entries = await Promise.all(
+        keys.map(
+          async (key) =>
+            [key, parseBanRecord(await this.#client.get(`app:ban:${key}`), key)] as const,
+        ),
+      );
 
-    this.#cache.clear();
-    for (const [key, record] of entries) this.#cache.set(key, record);
-    this.#loaded = true;
+      this.#cache.clear();
+      for (const [key, record] of entries) this.#cache.set(key, record);
+      this.#loaded = true;
+    });
   }
 
   // ポートが Promise を返すと宣言している以上、失敗も**拒否として**返す。
@@ -74,30 +87,34 @@ export class RedisBanRepository implements IBanRepository {
   }
 
   public async save(record: BanRecord): Promise<void> {
-    const key = banKey(record.subject);
-    try {
-      await this.#client
-        .multi()
-        .set(`app:ban:${key}`, JSON.stringify(record))
-        .sAdd(BAN_INDEX, key)
-        .exec();
-    } catch (error) {
-      // commit済みか不明な応答喪失時に古いcacheで判定させない。
-      this.#loaded = false;
-      throw error;
-    }
-    this.#cache.set(key, record);
+    await this.#operations.run(async () => {
+      const key = banKey(record.subject);
+      try {
+        await this.#client
+          .multi()
+          .set(`app:ban:${key}`, JSON.stringify(record))
+          .sAdd(BAN_INDEX, key)
+          .exec();
+      } catch (error) {
+        // commit済みか不明な応答喪失時に古いcacheで判定させない。
+        this.#loaded = false;
+        throw error;
+      }
+      this.#cache.set(key, record);
+    });
   }
 
   public async delete(subject: BanSubject): Promise<boolean> {
-    const key = banKey(subject);
-    try {
-      await this.#client.multi().del(`app:ban:${key}`).sRem(BAN_INDEX, key).exec();
-    } catch (error) {
-      this.#loaded = false;
-      throw error;
-    }
-    return this.#cache.delete(key);
+    return await this.#operations.run(async () => {
+      const key = banKey(subject);
+      try {
+        await this.#client.multi().del(`app:ban:${key}`).sRem(BAN_INDEX, key).exec();
+      } catch (error) {
+        this.#loaded = false;
+        throw error;
+      }
+      return this.#cache.delete(key);
+    });
   }
 
   /**
@@ -114,25 +131,28 @@ export class RedisBlockRepository implements IBlockRepository {
   readonly #client: RedisClientType;
   readonly #cache = new Map<string, BlockRecord>();
   #loaded = false;
+  readonly #operations = new SerialQueue();
 
   public constructor(client: RedisClientType) {
     this.#client = client;
   }
 
   public async preload(): Promise<void> {
-    // 再読込に失敗したとき古いcacheを「最新」として使わせない。
-    this.#loaded = false;
-    const keys = await this.#client.sMembers(BLOCK_INDEX);
-    const entries = await Promise.all(
-      keys.map(
-        async (key) =>
-          [key, parseBlockRecord(await this.#client.get(`app:block:${key}`), key)] as const,
-      ),
-    );
+    await this.#operations.run(async () => {
+      // 再読込に失敗したとき古いcacheを「最新」として使わせない。
+      this.#loaded = false;
+      const keys = await this.#client.sMembers(BLOCK_INDEX);
+      const entries = await Promise.all(
+        keys.map(
+          async (key) =>
+            [key, parseBlockRecord(await this.#client.get(`app:block:${key}`), key)] as const,
+        ),
+      );
 
-    this.#cache.clear();
-    for (const [key, record] of entries) this.#cache.set(key, record);
-    this.#loaded = true;
+      this.#cache.clear();
+      for (const [key, record] of entries) this.#cache.set(key, record);
+      this.#loaded = true;
+    });
   }
 
   public async find(target: BlockTarget): Promise<BlockRecord | undefined> {
@@ -146,29 +166,33 @@ export class RedisBlockRepository implements IBlockRepository {
   }
 
   public async save(record: BlockRecord): Promise<void> {
-    const key = blockKey(record.target);
-    try {
-      await this.#client
-        .multi()
-        .set(`app:block:${key}`, JSON.stringify(record))
-        .sAdd(BLOCK_INDEX, key)
-        .exec();
-    } catch (error) {
-      this.#loaded = false;
-      throw error;
-    }
-    this.#cache.set(key, record);
+    await this.#operations.run(async () => {
+      const key = blockKey(record.target);
+      try {
+        await this.#client
+          .multi()
+          .set(`app:block:${key}`, JSON.stringify(record))
+          .sAdd(BLOCK_INDEX, key)
+          .exec();
+      } catch (error) {
+        this.#loaded = false;
+        throw error;
+      }
+      this.#cache.set(key, record);
+    });
   }
 
   public async delete(target: BlockTarget): Promise<boolean> {
-    const key = blockKey(target);
-    try {
-      await this.#client.multi().del(`app:block:${key}`).sRem(BLOCK_INDEX, key).exec();
-    } catch (error) {
-      this.#loaded = false;
-      throw error;
-    }
-    return this.#cache.delete(key);
+    return await this.#operations.run(async () => {
+      const key = blockKey(target);
+      try {
+        await this.#client.multi().del(`app:block:${key}`).sRem(BLOCK_INDEX, key).exec();
+      } catch (error) {
+        this.#loaded = false;
+        throw error;
+      }
+      return this.#cache.delete(key);
+    });
   }
 
   #assertLoaded(): void {
@@ -196,6 +220,39 @@ export class RedisCooldownStore implements ICooldownStore {
       expiration: { type: "PX", value: windowMs },
     });
     return result === "OK";
+  }
+}
+
+export class RedisReplyRepository implements IReplyRepository {
+  public constructor(private readonly client: RedisClientType) {}
+
+  public async find(originalMessageId: string): Promise<ReplyRecord | undefined> {
+    const replyMessageIds = await this.client.sMembers(replyKey(originalMessageId));
+    return replyMessageIds.length === 0 ? undefined : { originalMessageId, replyMessageIds };
+  }
+
+  public async add(
+    originalMessageId: string,
+    replyMessageId: string,
+    ttlMs: number,
+  ): Promise<boolean> {
+    validateReplyTtl(ttlMs);
+    const result = await this.client.eval(ADD_REPLY_IF_ACTIVE, {
+      keys: [replyKey(originalMessageId), replyTombstoneKey(originalMessageId)],
+      arguments: [replyMessageId, String(ttlMs)],
+    });
+    return result === 1;
+  }
+
+  public async markDeleted(originalMessageId: string, ttlMs: number): Promise<void> {
+    validateReplyTtl(ttlMs);
+    await this.client.set(replyTombstoneKey(originalMessageId), "1", {
+      expiration: { type: "PX", value: ttlMs },
+    });
+  }
+
+  public async remove(originalMessageId: string, replyMessageId: string): Promise<boolean> {
+    return (await this.client.sRem(replyKey(originalMessageId), replyMessageId)) > 0;
   }
 }
 
@@ -245,4 +302,32 @@ function banKey(subject: BanSubject): string {
 
 function blockKey(target: BlockTarget): string {
   return `${target.kind}:${target.id}`;
+}
+
+function replyKey(originalMessageId: string): string {
+  return `app:reply:${originalMessageId}`;
+}
+
+function replyTombstoneKey(originalMessageId: string): string {
+  return `app:reply-deleted:${originalMessageId}`;
+}
+
+function validateReplyTtl(ttlMs: number): void {
+  if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
+    throw new RangeError("ttlMs must be a positive safe integer");
+  }
+}
+
+/** preloadと管理更新がcacheを上書きし合わないためのリポジトリ内直列化。 */
+class SerialQueue {
+  #tail: Promise<void> = Promise.resolve();
+
+  public run<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.#tail.then(operation, operation);
+    this.#tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
 }

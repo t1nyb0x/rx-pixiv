@@ -82,18 +82,19 @@ Discord描画への適用は Plan 0007 で行う。任意の `PximgFetcher` はv
 
 - **対象**: `MediaSelector` / `NsfwPolicy` の適用箇所
 - 最近作サムネイルは**1枚ずつ**判定する。
-  通常チャンネルで制限ありまたは判定不能なものは、そのサムネイルだけ落とす
-  （カード全体を落とすのではない）
+  通常チャンネルではセンシティブを設定どおりspoiler/link-only/skipへ振り分け、
+  R-18や判定不能などメディアを出せない判定はそのサムネイルだけ落とす。
+  カード全体は落とさず、個別spoiler判定をレンダラまで保持する
 
-### 項目6: 添付フォールバック（既定は無効）
+### 将来候補: 添付フォールバック（本Plan・v1対象外）
 
 - **対象**: `src/infrastructure/http/PximgFetcher.ts`
 - [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) の第3段。
-  `MEDIA_FALLBACK=attachment` のときだけ有効
+  将来別Planで実装する場合に `MEDIA_FALLBACK=attachment` と同時に設定入口を追加する
 - `Referer: https://www.pixiv.net/` を付けて取得し、`IMediaFetcher` の `bytes` を返す
 - **PHPSESSID を送らない**
 - **バイト上限はストリーミング中のカウンタで強制する**（`content-length` だけに頼らない）
-- **既定が無効である以上、v1 の完了条件からは外す**。実装は最小限でよい
+- **本Planでは実装しない。** 将来Planが設定入口、安全条件、テスト、完了条件をまとめて所有する
 
 ## 影響範囲
 

@@ -18,6 +18,7 @@ export interface RenderMedia {
 
 export interface RenderItem {
   readonly url: string;
+  readonly spoiler: boolean;
   readonly title?: string;
   readonly description?: string;
   readonly author?: RenderAuthor;
@@ -28,4 +29,6 @@ export interface RenderItem {
 export interface RenderPlan {
   readonly content?: string;
   readonly items: readonly RenderItem[];
+  /** content中のURLをDiscord自身がOGP展開しないようにする。 */
+  readonly suppressLinkPreviews?: boolean;
 }
