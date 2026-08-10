@@ -4,19 +4,20 @@ Discord に貼られた **pixiv の URL を読める形に展開する Bot**。
 
 `rx-twitter`（Twitter/X）、`rx-instagram`（Instagram）に続く3本目。
 
-> **状態: 設計フェーズ完了 / 実装未着手**
-> 要件定義・アーキテクチャ設計・ADR が確定し、実装 Plan に落とした段階です。
+> **状態: 実装中（Plan 0002: プロジェクト基盤整備）**
+> 現在利用できるのは、設定検証・ロガー・ヘルスサーバ・Discord 接続などの基盤です。
+> URL 展開、年齢制限判定、管理コマンドは後続 Plan で実装します。
 > 進捗は [TODO.md](TODO.md) を参照してください。
 
 ---
 
-## なぜ必要か
+## v1 で実現すること
 
 pixiv の URL を Discord に貼っても、プレビューにはタイトルと pixiv のロゴ程度しか出ません。
 画像 CDN `i.pximg.net` が `Referer: https://www.pixiv.net/` を要求し、
 Discord の埋め込みプロキシがそのヘッダを付けられないためです。
 
-rx-pixiv は画像 URL のホスト名を画像プロキシへ書き換えて埋め込みます。
+v1 の rx-pixiv は画像 URL のホスト名を画像プロキシへ書き換えて埋め込みます。
 **Bot 自身は画像バイトを一切運びません**（[ADR 0014](docs/adr/0014-media-delivery-via-proxy-url.md)）。
 
 ---
@@ -38,7 +39,7 @@ rx-pixiv は画像 URL のホスト名を画像プロキシへ書き換えて埋
 
 ---
 
-## 年齢制限コンテンツの扱い
+## 年齢制限コンテンツの予定仕様
 
 **この Bot の設計上の最優先事項です。**
 
@@ -57,7 +58,7 @@ rx-pixiv は画像 URL のホスト名を画像プロキシへ書き換えて埋
 
 ---
 
-## 画像の扱いについて
+## 画像の扱いについて（予定仕様）
 
 `i.pximg.net` は `Referer: https://www.pixiv.net/` を要求するため、URL をそのまま
 埋め込んでも Discord は描画できません。本 Bot は **URL のホスト名を画像プロキシへ
@@ -80,7 +81,7 @@ pixiv が返す:  https://i.pximg.net/img-master/.../xxx_p0_master1200.jpg
 
 ---
 
-## 必要な Discord 権限
+## v1 で必要になる Discord 権限
 
 | 権限 | 要否 |
 |---|---|
@@ -99,9 +100,9 @@ Discord Developer Portal で **Message Content Intent を有効化**する必要
 
 ---
 
-## 管理コマンド
+## 管理コマンド（予定仕様）
 
-オーナー（`OWNER_USER_ID`）との DM でのみ動作します
+実装後は、オーナー（`OWNER_USER_ID`）との DM でのみ動作します
 （[ADR 0015](docs/adr/0015-admin-commands-and-abuse-control.md)）。
 
 | コマンド | 役割 |
@@ -130,16 +131,29 @@ Discord Developer Portal で **Message Content Intent を有効化**する必要
 技術スタックは [ADR 0001](docs/adr/0001-tech-stack.md) で確定しています
 （TypeScript 6 / Node 24 / ESM / discord.js v14 / undici / zod / pino / Vitest / oxlint + oxfmt）。
 
-コマンドは [Plan 0002](.claude/addf/plans/0002-project-scaffold.md) の完了後に利用可能になります。
+基盤コマンドは利用可能です。Node.js 24 を用意し、まず依存関係と環境変数を設定します。
+
+```bash
+npm ci
+cp .env.example .env
+```
+
+`.env` の `DISCORD_TOKEN` と `OWNER_USER_ID` は必須です。`npm run dev` は `.env` があれば
+自動で読み込みます。設定項目と既定値は [.env.example](.env.example) を参照してください。
 
 ```bash
 npm run build        # ビルド
 npm run typecheck    # 型検査
 npm run lint         # Lint
+npm run fmt:check    # フォーマット検査
 npm test             # テスト
 npm run test:coverage
-npm run dev          # 開発起動
+npm run dev          # .env を読み込んで開発起動
 ```
+
+コンテナで起動する場合は `docker compose up --build` を使います。ヘルスエンドポイント
+`/healthz`、`/readyz`、`/health`、`/metrics` はコンテナネットワーク内の `9090` 番で提供し、
+ホストには公開しません。
 
 ---
 

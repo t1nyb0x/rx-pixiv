@@ -13,6 +13,16 @@
 
 ## 問題の記録
 
+- **Codex のサンドボックスでは ADDF テストが利用者環境の cache・Git 署名設定を継承して偽陰性になる**
+  （2026-08-10, Plan 0002 で確認）:
+  `run-all.sh` の一時リポジトリ作成がグローバルな `commit.gpgsign=true` を継承し、秘密鍵を
+  使えない環境では fixture commit が失敗する。また `uv` は既定のユーザー cache が読み取り専用だと
+  PyYAML の準備前に失敗する。`UV_CACHE_DIR=/tmp/...` と
+  `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false` を指定すると、
+  既知の `test-template-sync.sh` Test 4b 以外は通過した。
+  - 改善候補: テストランナー自身が一時 cache を作り、fixture repo の commit 時だけ署名を無効化する
+  - 影響: 製品差分に無関係な13スイート失敗として見え、真の退行判定を妨げる
+
 - **ADDF テストスイート `test-template-sync.sh` がダウンストリームで7件失敗する**
   → **2026-08-10 に 1件へ改善**（Plan 0001 で `README.md` を作成したため6件が解消）。
   残る1件は下記 Test 4b（`タスク欄の変更でペア1 は OK` が exit=2 になる）で、

@@ -14,6 +14,7 @@
 | ファイル | 要約 | キーワード |
 |---|---|---|
 | [design-phase-spike-and-numbering.md](design-phase-spike-and-numbering.md) | 設計フェーズの5つの型 — 実測で前提を潰す・Proposed で残す・採番衝突・**却下理由こそ実測対象**・置換 ADR は残す | 設計フェーズ, 要件定義, ADR, Proposed, Superseded, スパイク, 実測, 採番, 相互参照, Rejected alternatives, 却下理由, ドキュメントレビュー, 骨格プランニング |
+| [typescript-service-scaffold-boundaries.md](typescript-service-scaffold-boundaries.md) | TypeScript サービス基盤の解決経路・設定境界・配布順序を負例で固定する | TypeScript, ESM, package imports, zod, env, oxlint, workflow_call, release-please, CI/CD |
 
 > ADDF 由来の知見は `ADDF/` 配下（29件）にある。上表は未インデックス分を含むため、
 > 初回タスク前に `/addf-knowhow-index reindex` で全件を再生成すること。

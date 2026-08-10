@@ -1,0 +1,62 @@
+{
+  "name": "rx-pixiv",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Discord bot that expands pixiv URLs safely",
+  "type": "module",
+  "imports": {
+    "#adapters/*": {
+      "types": "./src/adapters/*.ts",
+      "default": "./dist/adapters/*.js"
+    },
+    "#config/*": {
+      "types": "./src/config/*.ts",
+      "default": "./dist/config/*.js"
+    },
+    "#core/*": {
+      "types": "./src/core/*.ts",
+      "default": "./dist/core/*.js"
+    },
+    "#infrastructure/*": {
+      "types": "./src/infrastructure/*.ts",
+      "default": "./dist/infrastructure/*.js"
+    },
+    "#utils/*": {
+      "types": "./src/utils/*.ts",
+      "default": "./dist/utils/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "node --watch --env-file-if-exists=.env --import tsx src/index.ts",
+    "fmt": "oxfmt src tests scripts .github/workflows docker-compose.yml package.json tsconfig.json tsconfig.build.json vitest.config.ts oxlint.json",
+    "fmt:check": "oxfmt --check src tests scripts .github/workflows docker-compose.yml package.json tsconfig.json tsconfig.build.json vitest.config.ts oxlint.json",
+    "lint": "oxlint -c oxlint.json src tests scripts vitest.config.ts && npm run lint:architecture",
+    "lint:architecture": "node scripts/verify-layer-lint.mjs",
+    "start": "node --enable-source-maps dist/index.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.0",
+    "discord.js": "^14.27.0",
+    "hono": "^4.13.1",
+    "pino": "^10.3.1",
+    "undici": "^8.10.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@vitest/coverage-v8": "^4.1.10",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
+    "pino-pretty": "^13.1.3",
+    "tsx": "^4.23.12",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25"
+  }
+}

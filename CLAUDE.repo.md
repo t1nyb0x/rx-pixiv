@@ -11,7 +11,8 @@ Discord に貼られた **pixiv の URL を展開する Bot**。
 pixiv の URL を貼っても Discord のプレビューにはタイトルとロゴしか出ない。
 画像 CDN `i.pximg.net` が `Referer: https://www.pixiv.net/` を要求し、
 Discord の埋め込みプロキシがそれを付けられないためである。
-rx-pixiv は Bot 自身が `Referer` を付けて画像を取得し、Discord の添付として再配信する。
+rx-pixiv は画像 URL を設定可能な画像プロキシへ書き換えて埋め込み、
+Bot 自身は画像バイトを取得・再配信しない。
 
 **v1 スコープ**: イラスト・マンガ（複数ページ）／小説／ユーザープロフィール。
 うごイラはロードマップ送り。
@@ -23,9 +24,9 @@ rx-pixiv は Bot 自身が `Referer` を付けて画像を取得し、Discord �
 
 | 文書 | 内容 |
 |---|---|
-| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | 要件定義（機能 FR-1〜5 / 非機能 NFR-1〜6 / 制約） |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | 要件定義（機能 FR-1〜6 / 非機能 NFR-1〜6 / 制約） |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | アーキテクチャ設計（層構成・データフロー・ドメインモデル） |
-| [docs/adr/](docs/adr/) | 設計判断の記録（ADR 0001〜0013） |
+| [docs/adr/](docs/adr/) | 設計判断の記録（ADR 0001〜0016） |
 | [TODO.md](TODO.md) | 実装フェーズのバックログ |
 
 ### 実装前に必ず読むべき ADR
@@ -74,21 +75,21 @@ CLAUDE.md も読み込むため両方が同時に効く。
 技術スタックは [ADR 0001](docs/adr/0001-tech-stack.md) で確定済み
 （TypeScript 6 / Node 24 / ESM / discord.js v14 / undici / zod / pino / Vitest / oxlint + oxfmt）。
 
-> **注**: 以下のコマンドは
-> [Plan 0002 プロジェクト基盤整備](.claude/addf/plans/0002-project-scaffold.md) で
-> `package.json` が作られた時点から利用可能になる。それ以前は ADDF のテストランナーのみが動く。
+以下の基盤コマンドは利用可能。開発起動では `.env` があれば自動で読み込み、
+`DISCORD_TOKEN` と `OWNER_USER_ID` が必須となる。
 
 | 種別 | コマンド |
 |---|---|
 | ビルド | `npm run build` |
 | 型検査 | `npm run typecheck` |
 | Lint | `npm run lint`（oxlint） |
-| フォーマット | `npm run fmt` / 検査は `npx oxfmt --check src tests` |
+| フォーマット | `npm run fmt` / 検査は `npm run fmt:check` |
 | テスト | `npm test` |
 | カバレッジ | `npm run test:coverage`（閾値: 行・文・関数 90% / 分岐 85%） |
 | 開発起動 | `npm run dev` |
 
-品質ゲートでは `build` → `typecheck` → `lint` → `test:coverage` の順に実行する。
+品質ゲートでは CI と同じく `lint` → `fmt:check` → `typecheck` → `test:coverage` → `build`
+の順に実行する。
 
 ADDF フレームワーク自体のテストランナー:
 

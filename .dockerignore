@@ -1,0 +1,13 @@
+.git
+.github
+.claude
+.agents
+.codex
+coverage
+dist
+docs
+node_modules
+tests
+.env
+*.md
+*.log

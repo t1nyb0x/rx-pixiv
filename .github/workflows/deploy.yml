@@ -1,0 +1,36 @@
+name: deploy
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+      WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+    steps:
+      - name: Skip unconfigured deploy
+        if: ${{ env.WEBHOOK_URL == '' || env.WEBHOOK_SECRET == '' }}
+        run: echo "Deploy webhook is not configured; skipping."
+      - name: Trigger deploy webhook
+        if: ${{ env.WEBHOOK_URL != '' && env.WEBHOOK_SECRET != '' }}
+        run: |
+          set -euo pipefail
+          PAYLOAD='{"event":"deploy"}'
+          SIGNATURE="sha256=$(printf '%s' "$PAYLOAD" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -binary | xxd -p -c 256)"
+          HTTP_STATUS=$(curl -sS -o /tmp/webhook_response.txt -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Hub-Signature-256: $SIGNATURE" \
+            --data "$PAYLOAD" \
+            --max-time 15 \
+            "$WEBHOOK_URL")
+          cat /tmp/webhook_response.txt
+          if [ "$HTTP_STATUS" != "202" ]; then
+            echo "::error::Webhook returned HTTP $HTTP_STATUS"
+            exit 1
+          fi

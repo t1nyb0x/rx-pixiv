@@ -36,7 +36,7 @@
 
 | 事項 | 関連 | 影響 |
 |---|---|---|
-| GitHub に `t1nyb0x/rx-pixiv` を作成する（remote は張り替え済み） | Plan 0001 | push できない |
+| ~~GitHub に `t1nyb0x/rx-pixiv` を作成する~~ → **解消**（作成・初回 push 済み） | Plan 0001 | — |
 | ~~pixiv 画像を Discord 添付として再配信する権利上の姿勢の許容~~ → **解消**（[ADR 0014](docs/adr/0014-media-delivery-via-proxy-url.md) で URL 埋め込みに変更し、再配信しなくなった） | — | — |
 | 展開拒否リストを Redis ではなく JSON ファイルで持つ選択肢（僅差） | [ADR 0016](docs/adr/0016-redis-for-persistent-state.md) | コンテナを増やしたくない事情があれば知らせてほしい |
 | `PIXIV_PHPSESSID` を供給するか（アカウント停止リスクの受容） | [ADR 0007](docs/adr/0007-pixiv-session-optional.md)（Proposed） | Plan 0005 のスパイク後に判断 |

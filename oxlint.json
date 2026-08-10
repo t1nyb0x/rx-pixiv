@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "plugins": ["typescript", "unicorn", "oxc", "vitest"],
+  "env": {
+    "node": true
+  },
+  "ignorePatterns": ["dist/**", "coverage/**", "tests/fixtures/lint/**"],
+  "overrides": [
+    {
+      "files": ["**/src/core/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(adapters|infrastructure)(/|$)|^#(adapters|infrastructure)/",
+                "message": "Core must depend only on core-owned ports, models, services, config, or utils."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["tests/**/*.ts"],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}

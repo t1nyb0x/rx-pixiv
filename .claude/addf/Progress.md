@@ -95,40 +95,40 @@
 
 - [x] Plan 0002、関連 ADR（0001・0002・0015・0016）、後続 Plan（0004・0011）、関連 knowhow を読む
 - [x] 前タスクの完了コミットを確認し、遅れていた Progress をアーカイブする
-- [ ] npm パッケージの互換バージョン、Node 24 イメージ digest、rx-instagram の CI 4本を実物で確認する
+- [x] npm パッケージの互換バージョン、Node 24 イメージ digest、rx-instagram の CI 4本を実物で確認する
 - [x] Plan 0002 の責務境界を固定する（Redis サービスは compose に置くが、クライアント実装は Plan 0011。HealthServer は状態注入可能にする）
 
 ##### フェーズ1: ツールチェーンと構造ガード
 
-- [ ] package.json・package-lock.json・TypeScript/ESM の最小ディレクトリ構成を作る
-- [ ] tsconfig・Vitest/v8 カバレッジ・oxlint・oxfmt を設定し、npm scripts を揃える
-- [ ] package.json の imports（#core/* 等）が型検査・テスト・ビルド後実行の全経路で解決できることを検証する
-- [ ] core から adapters/infrastructure への import を no-restricted-imports で禁止し、違反 fixture が lint で落ちることを検証する
+- [x] package.json・package-lock.json・TypeScript/ESM の最小ディレクトリ構成を作る
+- [x] tsconfig・Vitest/v8 カバレッジ・oxlint・oxfmt を設定し、npm scripts を揃える
+- [x] package.json の imports（#core/* 等）が型検査・テスト・ビルド後実行の全経路で解決できることを検証する
+- [x] core から adapters/infrastructure への import を no-restricted-imports で禁止し、違反 fixture が lint で落ちることを検証する
 
 ##### フェーズ2: 実行基盤
 
-- [ ] zod による env 一括検証、Discord の固定上限、.env.example を実装し、欠落・型不正・既定値・空の許可リストをテストする
-- [ ] pino ロガーと子ロガーを実装し、cookie・PIXIV_PHPSESSID の実値がログからマスクされることをテストする
-- [ ] Hono の HealthServer を実装し、/healthz・/readyz・/health・/metrics を listen なしでテストする
-- [ ] discord.js の最小起動経路、clientReady、SIGINT/SIGTERM、unhandledRejection、uncaughtException を実装する
-- [ ] ready 判定を依存注入し、Plan 0002 では Discord 接続状態、Plan 0011 では Redis 状態を追加できる形にする
+- [x] zod による env 一括検証、Discord の固定上限、.env.example を実装し、欠落・型不正・既定値・空の許可リストをテストする
+- [x] pino ロガーと子ロガーを実装し、cookie・PIXIV_PHPSESSID の実値がログからマスクされることをテストする
+- [x] Hono の HealthServer を実装し、/healthz・/readyz・/health・/metrics を listen なしでテストする
+- [x] discord.js の最小起動経路、clientReady、SIGINT/SIGTERM、unhandledRejection、uncaughtException を実装する
+- [x] ready 判定を依存注入し、Plan 0002 では Discord 接続状態、Plan 0011 では Redis 状態を追加できる形にする
 
 ##### フェーズ3: 配布・運用基盤
 
-- [ ] 非 root・2-stage・digest 固定の Dockerfile、.dockerignore、内部向け HEALTHCHECK を作る
-- [ ] bot + redis:8-alpine（AOF 有効）の docker-compose.yml を作り、ヘルスポートをホストへ公開しない
-- [ ] ci / push-image / release / deploy の GitHub Actions と release-please 設定を移植し、rx-pixiv 用に置換する
-- [ ] CLAUDE.repo.md のコマンド表を実装値に同期し、画像配信方式・ADR 一覧など既知のドキュメントドリフトも直す
+- [x] 非 root・2-stage・digest 固定の Dockerfile、.dockerignore、内部向け HEALTHCHECK を作る
+- [x] bot + redis:8-alpine（AOF 有効）の docker-compose.yml を作り、ヘルスポートをホストへ公開しない
+- [x] ci / push-image / release / deploy の GitHub Actions と release-please 設定を移植し、rx-pixiv 用に置換する
+- [x] CLAUDE.repo.md のコマンド表を実装値に同期し、画像配信方式・ADR 一覧など既知のドキュメントドリフトも直す
 
 ##### フェーズ4: 統合検証と品質ゲート
 
-- [ ] npm run build / typecheck / lint / test:coverage を通し、所定のカバレッジ閾値を満たす
-- [ ] 必須 env 欠落時に読める集約エラーを出して exit 1 することをプロセス境界で検証する
-- [ ] docker build と compose 起動を検証し、コンテナ内 /healthz が 200 を返すことを確認する
+- [x] npm run build / typecheck / lint / test:coverage を通し、所定のカバレッジ閾値を満たす
+- [x] 必須 env 欠落時に読める集約エラーを出して exit 1 することをプロセス境界で検証する
+- [x] docker build と compose 起動を検証し、コンテナ内 /healthz が 200 を返すことを確認する
 - [ ] GitHub Actions の構文・参照をローカル検証し、リポジトリ作成後に ci が緑であることを確認する
-- [ ] ADDF テストスイートを実行し、既知の上流起因1件以外に退行がないことを確認する
-- [ ] コードレビューとドキュメントレビューを実施し、主題内の指摘を修正して全検証を再実行する
-- [ ] コーディング・品質ゲート・タスク総括の知見と Feedback を記録する
+- [x] ADDF テストスイートを実行し、既知の上流起因1件以外に退行がないことを確認する
+- [x] コードレビューとドキュメントレビューを実施し、主題内の指摘を修正して全検証を再実行する
+- [x] コーディング・品質ゲート・タスク総括の知見と Feedback を記録する
 - [ ] Plan 0002 / TODO / Progress を完了状態へ同期し、日本語の規約でコミットする
 
 #### 日記
@@ -152,3 +152,42 @@ Plan 0011 とする。許可リストは Plan 記載どおり「空 = 全許可�
 **気になっていること**:
 GitHub の t1nyb0x/rx-pixiv が未作成なら、Actions のリモート実行だけは確認できない。
 ローカル実装と検証は止めず、リポジトリ作成後に最後の完了条件を確認する。
+
+##### 2026-08-10 — 基盤実装とローカル品質ゲート完了
+
+**やったこと**:
+TypeScript 6 / Node 24 / ESM のツールチェーン、env、pino、Hono ヘルス、Discord 最小起動、
+Docker/Compose、Actions 4本を実装した。ビルド・型検査・lint・フォーマット・12テストが通り、
+カバレッジは4指標100%。コンテナは uid 1000 で動き、内部 `/healthz` が 200 を返した。
+
+**今の見立て**:
+プロダクト側のローカル完了条件は満たした。ADDF 全体テストは uv キャッシュと Git 署名を
+サンドボックス向けに指定すると、Feedback.md 記載済みの Test 4b だけが残る。
+
+**次の自分へ**:
+並行レビュー3本の指摘を集約して修正し、全品質ゲートを再実行する。その後コミットし、
+push 前にデプロイ副作用を確認する。
+
+**気になっていること**:
+Actions の deploy は push-image 成功後に HMAC webhook を呼ぶ。レビュー後は Secrets 未設定時に
+skip する形へ修正したが、設定済み環境では main push が実デプロイを起動する設計である。
+
+##### 2026-08-10 — レビュー指摘を反映し、配布前の最終検証を通過
+
+**やったこと**:
+コード・文書・コントリビューションレビューを実施した。空の任意セッション、設定上限、
+Redis 障害時の Compose 起動、CI 前の image/deploy、5秒以内の終了保証、README の予定仕様と
+実装済み範囲の混同を修正した。15テスト、100% coverage、actionlint、hadolint、Docker build、
+非 root コンテナ内 health を再検証した。
+
+**今の見立て**:
+ローカル品質ゲートは完了した。GitHub Secrets は未登録なので、push 後の deploy workflow は
+明示的に skip され、実環境への副作用はない。
+
+**次の自分へ**:
+実装コミットを push して GitHub Actions を監視する。CI が緑になったら Plan 0002 の完了条件、
+TODO、README を同期し、Progress をアーカイブして完了コミットを push する。
+
+**気になっていること**:
+ADDF テストの既知 Test 4b と、サンドボックスで cache・Git署名設定を継承する問題は
+Feedback.md に記録済み。製品コードの退行ではない。
