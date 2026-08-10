@@ -87,7 +87,97 @@
 
 ## タスク
 
-（現在タスクなし）
+### 現在のタスク: Plan 0003 ドメインモデルと URL 検出
 
-> 新しいタスク開始時は以下の構造で記録する:
-> `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
+#### サブタスクチェックリスト
+
+##### フェーズ0: 仕様境界の確定
+
+- [x] Plan 0003、関連 ADR 0002・0004・0012・0016、後続 Plan 0005・0006・0007・0011を読む
+- [x] 漫画は `kind: "illust"` + `illustType: "manga"`、novel series は独立した `PixivRef` として扱う
+- [x] URL 検出は投稿順を維持し、抑制範囲をマスクしてから正規化・重複排除・3件制限する方針を固定する
+
+##### フェーズ1: ドメインモデル
+
+- [x] Result と FetchError 8種を実装し、成功・失敗の判別をテストする
+- [x] ContentRating と確信度3値を実装し、型の閉じた集合をテストする
+- [x] PixivRef、PixivWork、RenderPlan を外部依存なしで実装する
+- [x] illust / manga / ugoira / novel / novel series / user の型レベル網羅性を `never` チェックで検証する
+
+##### フェーズ2: ポート
+
+- [x] IPixivSource・IHttpClient・IMediaFetcher を Result ベースの非同期境界として定義する
+- [x] 取得元の年齢判定権威性・複数ページ能力・対応種別を capabilities で宣言できるようにする
+- [x] IWorkCache・IBanRepository・IBlockRepository を非同期インターフェースとして定義する
+- [x] core が adapters / infrastructure / discord.js / undici を import しないことを lint で確認する
+
+##### フェーズ3: URL 検出
+
+- [x] 全URL形を PixivRef へ正規化する純粋な detect を実装する
+- [x] コード・山括弧・スポイラー・別サービスを除外する
+- [x] 異形URLの重複排除、投稿順、最大3件、末尾句読点をテーブルテストで検証する
+- [x] pixiv.me は I/O せず shortlink として返すことを検証する
+
+##### フェーズ4: 品質ゲートと完了同期
+
+- [x] build / typecheck / lint / fmt:check / coverage を通し、UrlDetector 95%以上を確認する
+- [x] ADDF テストを既知1件以外通し、コード・文書・コントリビューションレビューを行う
+- [x] 主題内のレビュー指摘を修正し、品質ゲートを再実行する
+- [ ] knowhow・Feedback・Plan・TODO・Progress を完了状態へ同期する
+- [ ] 日本語規約でコミット・pushし、GitHub Actionsが緑であることを確認する
+
+#### 日記
+
+##### 2026-08-10 — Plan 0003 の実装境界を確定
+
+**やったこと**:
+Plan、関連 ADR、後続 Plan、既存 knowhow を読み、モデル・ポート・URL検出・品質ゲートへ分解した。
+URL の抑制記法は範囲を空白へマスクして候補同士の連結を防ぎ、その後に URL parse する方針とした。
+
+**今の見立て**:
+実装方針の確信度は高い。漫画は独立 `kind` ではなく illust の `illustType`、novel series は
+取得前の参照種別として保持する。ポートの詳細は後続実装を拘束しすぎない素朴なデータ境界に留める。
+
+**次の自分へ**:
+基礎モデルとポートを先に作り、型検査を通してから UrlDetector と網羅テーブルテストを実装する。
+
+**気になっていること**:
+RenderPlan と Redis リポジトリの具象的な利用は後続 Plan なので、現時点では必要最小限の型に留める。
+
+##### 2026-08-10 — core モデル・ポート・URL検出を実装
+
+**やったこと**:
+外部依存を持たないモデル6ファイル、非同期ポート6本、純粋な UrlDetector を実装した。
+全URL形、偽陽性、異形重複、3件制限、抑制範囲、末尾句読点を45テストで検証し、
+UrlDetector を含むカバレッジ4指標が100%になった。build・typecheck・lint・formatも通過した。
+
+**今の見立て**:
+Plan の実装条件は満たした。URL候補を一般URLとして拾ってから正確な host/path/query で分類するため、
+pixivision 等の似たドメインや未対応 route を誤検出しない。
+
+**次の自分へ**:
+ADDF テストを既知条件付きで実行し、コード・文書・コントリビューションレビューへ進む。
+
+**気になっていること**:
+設計書の ContentRating サンプルに `level` の重複行がある。モデル主題内の文書ドリフトとして
+レビュー時に修正対象か判定する。
+
+##### 2026-08-10 — 品質レビューの契約不足を反映
+
+**やったこと**:
+コード・文書・コントリビューションレビューを実施し、取得元 capabilities の能力宣言、
+小説シリーズの取得結果型、型 union の双方向同値テストを追加した。要件・設計・README・後続 Plan の
+実装状況と契約も同期した。再度、全44テスト・カバレッジ100%・build・typecheck・lint・formatを通過した。
+ADDF テストは既知の template-sync Test 4b だけが失敗し、他は通過した。
+
+**今の見立て**:
+Plan 0003 の主題内指摘は解消済み。`NovelSeriesRef` が後続取得で収束する型と Plan 0005 の実装経路が揃い、
+ドメイン契約に宙ぶらりんな URL 種別は残っていない。
+
+**次の自分へ**:
+差分を最終確認し、実装コミットを push して GitHub Actions を確認する。その後 Plan・TODO・Progress を
+完了同期し、Progress をアーカイブして完了コミットを push する。
+
+**気になっていること**:
+小説シリーズの公式 Ajax endpoint は未実測。Plan 0005 のフェーズ0で確定するため、現時点で推測した
+endpoint を契約に固定していない。

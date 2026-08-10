@@ -4,9 +4,8 @@
 - 対象バージョン: v1
 - 前提となる要件: [REQUIREMENTS.md](REQUIREMENTS.md)
 
-> **本書はこれから作るものの設計であり、実装状況の記録ではない。**
-> 2026-08-10 時点でプロダクトコードは存在しない。
-> 以下に登場するファイルパス・型・クラスはすべて**これから作るもの**である。
+> **本書は v1 全体の設計であり、個々の機能の実装状況は記録しない。**
+> 以下に登場するファイルパス・型・クラスには実装済みのものと後続 Plan で実装するものがある。
 > 実装の進捗は [TODO.md](../TODO.md) と `.claude/addf/plans/` を参照すること。
 
 ---
@@ -267,8 +266,17 @@ type PixivWork =
                   tags: PixivTag[]; description?: string; stats?: {...}; createdAt?: string })
   | (WorkBase & { kind: "novel"; textCount?: number; coverImage?: PixivImage;
                   series?: {...}; tags: PixivTag[]; excerpt?: string })
+  | (WorkBase & { kind: "novel_series"; description?: string;
+                  coverImage?: PixivImage; novelCount?: number })
   | (WorkBase & { kind: "user"; bio?: string; counts?: {...};
-                  recentWorks: PixivImage[]; recentWorkRatings: ContentRating[] });
+                  recentWorks: UserRecentWork[] });
+
+interface UserRecentWork {
+  id: string;
+  canonicalUrl: string;
+  image: PixivImage;
+  rating: ContentRating;
+}
 ```
 
 - 取得できなかった項目は `null` / `undefined`。**空文字センチネルは使わない**
@@ -282,6 +290,12 @@ type PixivWork =
 ## 7. 取得経路の連鎖
 
 ```ts
+interface SourceCapabilities {
+  supportedKinds: PixivRef["kind"][];
+  ratingAuthority: "authoritative" | "inferred" | "unknown";
+  multiPage: boolean;
+}
+
 interface IPixivSource {
   readonly name: SourceName;
   readonly capabilities: SourceCapabilities;

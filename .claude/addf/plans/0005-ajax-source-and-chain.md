@@ -40,6 +40,7 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
   - **`auth_required` を `unavailable` と区別できるか**
 - phixiv が R-18 のメタデータ・画像を返すか
 - `/ajax/illust/{id}/pages` の多ページ応答と `master1200` の実サイズ分布
+- 小説シリーズのメタデータ取得に使える Ajax endpoint と応答形を実測し、一次取得経路を確定する
 - pixiv のレート制限の実閾値（何 req/min で 429 が返るか）
 - **`sl`（sanity level）の値域と「センシティブ」の閾値**。
   現在の `sl >= 4` は**未検証の仮置き**である（要件 Q-5）
@@ -48,14 +49,14 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 ### 項目1: スキーマと写像
 
 - **対象**: `src/adapters/pixiv/schemas/`、`mappers/`
-- zod スキーマ: `ajaxEnvelope` / `ajaxIllust` / `ajaxIllustPages` / `ajaxNovel` / `ajaxUser`
+- zod スキーマ: `ajaxEnvelope` / `ajaxIllust` / `ajaxIllustPages` / `ajaxNovel` / `ajaxNovelSeries` / `ajaxUser`
 - **実際に消費するフィールドだけ**を記述する。全フィールドを写経しない
 - mapper は純粋関数 `(validatedRaw) => PixivWork`
 
 ### 項目2: Ajax ソース（一次）
 
 - **対象**: `src/adapters/pixiv/AjaxPixivSource.ts`、`BasePixivSource.ts`
-- `/ajax/illust/{id}` + `/ajax/illust/{id}/pages`、`/ajax/novel/{id}`、`/ajax/user/{id}?full=1`
+- `/ajax/illust/{id}` + `/ajax/illust/{id}/pages`、`/ajax/novel/{id}`、フェーズ0で確定した小説シリーズ endpoint、`/ajax/user/{id}?full=1`
 - `xRestrict`（0/1/2）→ `RatingLevel`、`sl` → `sensitive`、`aiType` → `ai`。
   `confidence: "authoritative"`
 - **部分成功を捨てない**: `/pages` が失敗しても1ページ目だけで返し `pagesTruncated: true`
@@ -104,7 +105,7 @@ Plan 0006 の NSFW ゲートの縮退経路の記述に影響する。
 ## テスト方針
 
 - 実 API から採取した fixture（`tests/fixtures/ajax/*.json`）に対する写像テスト。
-  `illust-single` / `illust-manga` / `illust-ugoira` / `novel` / `user` /
+  `illust-single` / `illust-manga` / `illust-ugoira` / `novel` / `novel-series` / `user` /
   `error-notfound` / `error-authrequired` を用意する
 - **モックはポート（`IHttpClient`）に対して行う**。`vi.mock("undici")` はしない
 - 連鎖のテスト: 各エラー種別で「打ち切るか続行するか」を全て検証する
@@ -123,7 +124,7 @@ Plan 0006 の NSFW ゲートの縮退経路の記述に影響する。
 ## 完了条件
 
 - [ ] フェーズ0 のスパイク結果が ADR 0007 の Context と決定ログに記録され、Status が確定している
-- [ ] fixture から illust / manga / novel / user が正しく `PixivWork` へ写像される
+- [ ] fixture から illust / manga / novel / novel series / user が正しく `PixivWork` へ写像される
 - [ ] `not_found` で連鎖が打ち切られ、他のエラーでは続行することがテストで確認できる
 - [ ] `auth_required` が `ratingHint = r18/inferred` を立て、**後段で緩められない**
 - [ ] `/pages` の失敗時に1ページ目だけで返り `pagesTruncated: true` になる

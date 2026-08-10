@@ -1,6 +1,6 @@
 # Plan 0003: ドメインモデルと URL 検出
 
-## 実装状況: 未着手
+## 実装状況: 進行中（2026-08-10）
 
 owner_feedback: 不要
 
@@ -24,7 +24,8 @@ URL 文字列から正規化された参照を取り出す純粋関数と、
 
 ## 現状の挙動
 
-未実装。
+URL 検出・正規化と外部依存ゼロのドメイン型を実装済み。
+Discord の `messageCreate` への配線、作品取得、描画は後続 Plan で実装する。
 
 ## 変更内容（項目・フェーズ）
 
@@ -39,7 +40,7 @@ URL 文字列から正規化された参照を取り出す純粋関数と、
 ### 項目2: 作品モデル
 
 - **対象**: `src/core/models/PixivWork.ts`、`PixivRef.ts`、`RenderPlan.ts`
-- `PixivWork` は `kind` による判別共用体（`illust` / `novel` / `user`）
+- `PixivWork` は `kind` による判別共用体（`illust` / `novel` / `novel_series` / `user`）
 - 取得できない項目は `null` / `undefined`。**空文字センチネルを使わない**
 - `UserWork` は最近作を**1件ずつ `ContentRating` 付き**で持つ
 - `RenderPlan` は **discord.js の型を含まない**表示記述
@@ -70,7 +71,8 @@ URL 文字列から正規化された参照を取り出す純粋関数と、
 
 ## 影響範囲
 
-`src/core/` 配下の新規追加のみ。他層への依存を持たない。
+`src/core/` と `tests/core/` を新規追加する。契約同期のため要件・設計文書と後続 Plan 0005 を更新する。
+実装コードは他層への依存を持たない。
 
 ## テスト方針
 
@@ -92,7 +94,7 @@ URL 文字列から正規化された参照を取り出す純粋関数と、
 
 - [ ] URL 検出のテーブルテストが全 URL 形と全偽陽性ケースで緑
 - [ ] `UrlDetector` のカバレッジが 95% 以上
-- [ ] `PixivWork` が illust / manga / novel / user を表現できている
+- [ ] `PixivWork` が illust / manga / novel / novel series / user を表現できている
 - [ ] `ContentRating.confidence` が3値（`authoritative` / `inferred` / `unknown`）で定義されている
 - [ ] `src/core/` が `adapters/` `infrastructure/` を import していない（lint で担保）
 - [ ] `UrlDetector` が I/O を一切行わない（`pixiv.me` は解決せず shortlink として返す）

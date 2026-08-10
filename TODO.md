@@ -3,13 +3,13 @@
 `.claude/addf/plans/` の完了状態・優先度をトラックする。
 `.claude/addf/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: 次タスク待ち（Plan 0003 / 0004 が着手可能）
+## 現在のフェーズ: Plan 0003（ドメインモデルと URL 検出）
 
 ## バックログ
 
 | 優先度 | Phase | 計画ファイル | 状態 |
 |---|---|---|---|
-| 2 | 0003 | [ドメインモデルと URL 検出](.claude/addf/plans/0003-domain-and-url-detection.md) | 未着手（着手可能） |
+| 2 | 0003 | [ドメインモデルと URL 検出](.claude/addf/plans/0003-domain-and-url-detection.md) | 進行中（2026-08-10） |
 | 2 | 0004 | [HTTP 基盤・レート制御・キャッシュ](.claude/addf/plans/0004-http-ratelimit-cache.md) | 未着手（着手可能・0003 と並列可） |
 | 3 | 0005 | [Ajax ソースとフォールバック連鎖](.claude/addf/plans/0005-ajax-source-and-chain.md) | 未着手（0003+0004 依存・**R-18 スパイクを内包**） |
 | 3 | 0006 | [NSFW ゲートとメディア URL 組み立て](.claude/addf/plans/0006-nsfw-gate-and-media.md) | 未着手（0003+0005 依存） |
@@ -39,7 +39,7 @@
 | ~~pixiv 画像を Discord 添付として再配信する権利上の姿勢の許容~~ → **解消**（[ADR 0014](docs/adr/0014-media-delivery-via-proxy-url.md) で URL 埋め込みに変更し、再配信しなくなった） | — | — |
 | 展開拒否リストを Redis ではなく JSON ファイルで持つ選択肢（僅差） | [ADR 0016](docs/adr/0016-redis-for-persistent-state.md) | コンテナを増やしたくない事情があれば知らせてほしい |
 | `PIXIV_PHPSESSID` を供給するか（アカウント停止リスクの受容） | [ADR 0007](docs/adr/0007-pixiv-session-optional.md)（Proposed） | Plan 0005 のスパイク後に判断 |
-| ギルド/チャンネル許可リストを v1 に入れるか | Plan 0002 | 既定は「空 = 全許可」で進める |
+| ~~ギルド/チャンネル許可リストを v1 に入れるか~~ → **解消**（v1 に導入済み、空 = 全許可） | Plan 0002 | — |
 
 ---
 
