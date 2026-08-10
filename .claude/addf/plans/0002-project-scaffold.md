@@ -1,6 +1,6 @@
 # Plan 0002: プロジェクト基盤整備（ツールチェーン・CI・Docker・設定・ロガー・ヘルス）
 
-## 実装状況: 進行中（2026-08-10）
+## 実装状況: 完了（2026-08-10）
 
 owner_feedback: 不要
 
@@ -116,13 +116,13 @@ edge: derived-from 0001
 
 ## 完了条件
 
-- [ ] `npm run build` / `lint` / `typecheck` / `test` がすべて緑
-- [ ] `docker build` が成功し、コンテナ起動後に `/healthz` が 200 を返す
-- [ ] 必須環境変数が欠けた状態で起動すると、**読める理由**を出して exit 1 する
-- [ ] `PIXIV_PHPSESSID` を設定した状態でログを出し、値がマスクされていることをテストで確認
-- [ ] `src/core/` から `src/adapters/` を import すると **lint で落ちる**
-- [ ] GitHub Actions の `ci` ワークフローが緑
-- [ ] `CLAUDE.repo.md` のコマンド表に「未定」が残っていない
+- [x] `npm run build` / `lint` / `typecheck` / `test` がすべて緑
+- [x] `docker build` が成功し、コンテナ起動後に `/healthz` が 200 を返す
+- [x] 必須環境変数が欠けた状態で起動すると、**読める理由**を出して exit 1 する
+- [x] `PIXIV_PHPSESSID` を設定した状態でログを出し、値がマスクされていることをテストで確認
+- [x] `src/core/` から `src/adapters/` を import すると **lint で落ちる**
+- [x] GitHub Actions の `ci` ワークフローが緑
+- [x] `CLAUDE.repo.md` のコマンド表に「未定」が残っていない
 
 ## AI 実装時間見積もり
 

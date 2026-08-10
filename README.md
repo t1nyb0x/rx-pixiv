@@ -4,7 +4,7 @@ Discord に貼られた **pixiv の URL を読める形に展開する Bot**。
 
 `rx-twitter`（Twitter/X）、`rx-instagram`（Instagram）に続く3本目。
 
-> **状態: 実装中（Plan 0002: プロジェクト基盤整備）**
+> **状態: 基盤整備完了（Plan 0002）/ 機能実装前**
 > 現在利用できるのは、設定検証・ロガー・ヘルスサーバ・Discord 接続などの基盤です。
 > URL 展開、年齢制限判定、管理コマンドは後続 Plan で実装します。
 > 進捗は [TODO.md](TODO.md) を参照してください。
