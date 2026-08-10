@@ -64,6 +64,13 @@ export const envSchema = z
     CHANNEL_COOLDOWN_MS: positiveInteger.default(5_000),
     SPOILER_IN_NSFW: booleanString.default(true),
     ALLOW_NSFW_IN_DM: booleanString.default(false),
+    SENSITIVE_IN_SFW: z.enum(["spoiler", "link_only", "skip"]).default("spoiler"),
+    UNKNOWN_RATING_SFW: z.enum(["skip", "link_only"]).default("skip"),
+    IMAGE_VARIANT_PREFERENCE: csv
+      .pipe(z.array(z.enum(["regular", "small", "thumb"])).min(1))
+      .default(["regular", "small", "thumb"]),
+    FETCH_TOTAL_BUDGET_MS: timerDuration.default(8_000),
+    PHIXIV_BASE_URL: urlWithProtocol(["http:", "https:"]).default("https://phixiv.net"),
   })
   .superRefine((env, context) => {
     if (env.MAX_PAGES_DEFAULT > env.MAX_PAGES_HARD) {

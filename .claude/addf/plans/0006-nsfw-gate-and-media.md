@@ -1,6 +1,6 @@
 # Plan 0006: NSFW ゲートとメディア URL 組み立て
 
-## 実装状況: 未着手
+## 実装状況: 完了（2026-08-10）
 
 owner_feedback: 不要
 
@@ -59,8 +59,13 @@ edge: blocked-by 0005
 - **対象**: `src/adapters/pixiv/ImageUrlRewriter.ts`
 - `https://i.pximg.net/<path>` → `${PXIMG_PROXY_BASE_URL}/<path>`（既定 `https://phixiv.net/i`）
 - **ホスト書き換えのみ。バイトを取得しない**
-- 入力が `i.pximg.net` 以外のホストだった場合は**書き換えず、埋め込みもしない**
-  （想定外の URL を無検査で埋め込まない）
+- **訂正（実装時）**: 当初この Plan には「`i.pximg.net` 以外は書き換えず、埋め込みもしない」
+  と書いていたが、**そのまま実装すると phixiv 経路と OGP 経路の画像がすべて消える**。
+  phixiv は既にプロキシ済みの `https://phixiv.net/i/...` を返し、
+  OGP は `https://embed.pixiv.net/...` を返すため。
+  正しくは「**`i.pximg.net` は書き換え、埋め込み可能と実測できたホストは素通し、
+  それ以外は弾く**」。この Plan は項目3・4 の実測より前に書かれていた
+- 想定外のホストは素通しも書き換えもしない
 - 末尾スラッシュの有無を正規化する
 
 ### 項目4: メディア選択
@@ -132,15 +137,15 @@ ADR 0014 への切り替えにより、**当初計画から以下が不要にな
 
 ## 完了条件
 
-- [ ] `NsfwPolicy` の 54 ケーステーブルテストが緑
-- [ ] `isAgeRestricted` の全 `ChannelType` テストが緑（スレッド・DM を含む）
-- [ ] `ImageUrlRewriter` が `i.pximg.net` 以外のホストを埋め込み対象から外す
-- [ ] `original` サイズが選択されないことがテストで担保されている
-- [ ] 部分失敗時に取れた分だけ表示される
-- [ ] `NsfwPolicy` が discord.js に依存していない（純粋関数）
-- [ ] `xRestrict` と `R-18`/`R-18G` タグの**2経路**で年齢区分を判定している（`sl` は使わない）
-- [ ] `sensitive` が v1 では常に false になっている
-- [ ] `PXIMG_PROXY_BASE_URL` を差し替えるだけでプロキシの向き先が変わる
+- [x] `NsfwPolicy` の 54 ケーステーブルテストが緑
+- [x] `isAgeRestricted` の全 `ChannelType` テストが緑（スレッド・DM を含む）
+- [x] `ImageUrlRewriter` が**未検証のホスト**を埋め込み対象から外す（埋め込み可能と実測したホストは素通し）
+- [x] `original` サイズが選択されないことがテストで担保されている
+- [x] 部分失敗時に取れた分だけ表示される
+- [x] `NsfwPolicy` が discord.js に依存していない（純粋関数）
+- [x] `xRestrict` と `R-18`/`R-18G` タグの**2経路**で年齢区分を判定している（`sl` は使わない）
+- [x] `sensitive` が v1 では常に false になっている
+- [x] `PXIMG_PROXY_BASE_URL` を差し替えるだけでプロキシの向き先が変わる
 
 ## AI 実装時間見積もり
 

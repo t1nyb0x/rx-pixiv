@@ -3,14 +3,14 @@
 `.claude/addf/plans/` の完了状態・優先度をトラックする。
 `.claude/addf/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: Plan 0006（NSFW ゲートとメディア URL 組み立て）着手可能
+## 現在のフェーズ: Plan 0011（管理コマンド・濫用対策・Redis）または Plan 0007（レンダリング）
 
 ## バックログ
 
 | 優先度 | Phase | 計画ファイル | 状態 |
 |---|---|---|---|
 | 3 | 0005 | [Ajax ソースとフォールバック連鎖](.claude/addf/plans/0005-ajax-source-and-chain.md) | **一部完了**（フェーズ0・項目1〜5 完了。残りは項目6 `PixivSession` の実装可否判断のみ） |
-| 3 | 0006 | [NSFW ゲートとメディア URL 組み立て](.claude/addf/plans/0006-nsfw-gate-and-media.md) | 未着手（**着手可能**） |
+
 | 4 | 0007 | [Discord レンダリングと messageCreate 配線](.claude/addf/plans/0007-rendering-and-wiring.md) | 未着手（0005+0006 依存） |
 | 4 | 0011 | [管理コマンド・濫用対策・Redis 永続化](.claude/addf/plans/0011-admin-and-abuse-control.md) | 未着手（着手可能・0007 と `MessageHandler` で重なる） |
 | 5 | 0008 | [運用面の仕上げ](.claude/addf/plans/0008-operations-hardening.md) | 未着手（0007 依存） |
@@ -46,6 +46,7 @@
 | Phase | 計画ファイル | 状態 |
 |---|---|---|
 | 0001 | [要件定義・アーキテクチャ設計・ADR 整備](.claude/addf/plans/0001-requirements-and-adr.md) | 完了（2026-08-10） |
+| 0006 | [NSFW ゲートとメディア URL 組み立て](.claude/addf/plans/0006-nsfw-gate-and-media.md) | 完了（2026-08-10） |
 | 0002 | [プロジェクト基盤整備](.claude/addf/plans/0002-project-scaffold.md) | 完了（2026-08-10） |
 | 0003 | [ドメインモデルと URL 検出](.claude/addf/plans/0003-domain-and-url-detection.md) | 完了（2026-08-10） |
 | 0004 | [HTTP 基盤・レート制御・キャッシュ](.claude/addf/plans/0004-http-ratelimit-cache.md) | 完了（2026-08-10） |
