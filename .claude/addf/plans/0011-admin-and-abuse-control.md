@@ -1,6 +1,9 @@
 # Plan 0011: 管理コマンド・濫用対策・Redis 永続化
 
-## 実装状況: 未着手
+## 実装状況: 一部完了（残り: Redis 実装と discord.js 配線）
+
+<!-- 純粋部分（ゲート順序・コマンド解釈）とインメモリ実装は完了。
+     Redis 実装（項目1・2・3 の一部）と OwnerCommandHandler の discord.js 配線が残り。 -->
 
 owner_feedback: 不要
 
