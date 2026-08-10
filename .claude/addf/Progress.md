@@ -109,7 +109,7 @@
 - [x] テスト 35件追加（123件全通過・文 95.59% / 分岐 87.59%）
 
 **項目2〜5**（スパイク非依存・`auth_required` の判定条件だけ後回し）
-- [ ] `AjaxPixivSource` + `BasePixivSource`
+- [x] `AjaxPixivSource` + `BasePixivSource` ✅ 完了（2026-08-10・テスト152件）
 - [ ] `PhixivSource`（二次）
 - [ ] `OgpScrapeSource`（三次）
 - [ ] `PixivSourceChain`（404 で打ち切り・年齢ヒント伝播）
@@ -221,6 +221,39 @@ mapper 側は `pages` を省略可能にしてあるので、ソース側で 404
   可能性を union で吸収している。実データで空ユーザーを確認していない
 - カバレッジの分岐 87.59% は閾値 85% を超えているが余裕が薄い。
   項目2 以降でソースを足すときに落ちやすい
+
+##### 2026-08-10 — 項目2 完了（Ajax ソース）
+
+**やったこと**:
+`BasePixivSource`（HTTP・JSON・スキーマ検証の共通土台）と `AjaxPixivSource` を実装。
+テスト152件全通過、文 95.58% / 分岐 87.82%。
+
+**山場だった 404 の扱いを、コードとテストの両方で固定した:**
+
+- `HttpClient` は 404 を `err({kind:"not_found"})` に写像済みだった。
+  つまり **`/pages` の 404 もそのままでは `not_found` として上がる**
+- `#fetchPages` で**あらゆる失敗を `undefined` に潰す**（画像ゼロ枚）。
+  写像側が `pagesTruncated` を立てる
+- 一方 `/ajax/illust/{id}` の `not_found` は**そのまま透過**する（権威ある不在）
+- テストで「`/pages` だけ 404 のとき作品が返ること」と
+  「illust の 404 では `/pages` を叩かないこと」を両方固定した
+
+**今の見立て**:
+`novel_series` は `AjaxPixivSource` では**非対応と宣言**した。
+`/ajax/novel/series/{id}` のレスポンス形を実データで確認できていないため
+（手元に有効なシリーズ ID が無い）。**推測で書かない**という方針を通した。
+capabilities で落ちるので連鎖が後段に委ねる。要件では v1 スコープなので、
+**シリーズ URL を1つもらえれば埋められる**。
+
+**次の自分へ**:
+項目3（`PhixivSource`）。phixiv は R-18 に og:image を出さないことが実測済みなので、
+`ratingAuthority: "inferred"` で宣言し、R-18 では画像を期待しない。
+その次が `OgpScrapeSource` → `PixivSourceChain`。
+
+**気になっていること**:
+- `novel_series` が未実装のまま。要件 2.1 に載っているので、
+  このまま Plan 0005 を完了にはできない。シリーズ ID を入手して埋めるか、
+  要件から外すかの判断が要る
 
 **気になっていること**:
 - スパイクで「WebFetch の観測 → curl で再検証」という二段構えが効いた。
