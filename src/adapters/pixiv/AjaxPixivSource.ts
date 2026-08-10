@@ -1,15 +1,27 @@
 import type { FetchError } from "#core/models/errors";
-import type { ArtworkRef, NovelRef, PixivRef, UserRef } from "#core/models/PixivRef";
+import type {
+  ArtworkRef,
+  NovelRef,
+  NovelSeriesRef,
+  PixivRef,
+  UserRef,
+} from "#core/models/PixivRef";
 import type { PixivWork, SourceName } from "#core/models/PixivWork";
 import { err, ok, type Result } from "#core/models/Result";
 import type { FetchContext, SourceCapabilities } from "#core/ports/IPixivSource";
 import { BasePixivSource, type BasePixivSourceOptions } from "#adapters/pixiv/BasePixivSource";
-import { mapAjaxIllust, mapAjaxNovel, mapAjaxUser } from "#adapters/pixiv/mappers/ajaxMapper";
+import {
+  mapAjaxIllust,
+  mapAjaxNovel,
+  mapAjaxNovelSeries,
+  mapAjaxUser,
+} from "#adapters/pixiv/mappers/ajaxMapper";
 import {
   ajaxEnvelopeSchema,
   ajaxIllustBodySchema,
   ajaxIllustPagesBodySchema,
   ajaxNovelBodySchema,
+  ajaxNovelSeriesBodySchema,
   ajaxUserBodySchema,
   ajaxUserProfileTopBodySchema,
   type AjaxIllustPagesBody,
@@ -31,6 +43,7 @@ function envelopeError(message: string | undefined): FetchError {
 const illustEnvelope = ajaxEnvelopeSchema(ajaxIllustBodySchema);
 const pagesEnvelope = ajaxEnvelopeSchema(ajaxIllustPagesBodySchema);
 const novelEnvelope = ajaxEnvelopeSchema(ajaxNovelBodySchema);
+const novelSeriesEnvelope = ajaxEnvelopeSchema(ajaxNovelSeriesBodySchema);
 const userEnvelope = ajaxEnvelopeSchema(ajaxUserBodySchema);
 const profileTopEnvelope = ajaxEnvelopeSchema(ajaxUserProfileTopBodySchema);
 
@@ -45,14 +58,12 @@ export interface AjaxPixivSourceOptions extends BasePixivSourceOptions {
  * 無認証でも `xRestrict` が取得できるため、**年齢区分を `authoritative` に確定できる**
  * 唯一の経路である（ADR 0007 の実測結果）。
  *
- * `novel_series` は未対応。`/ajax/novel/series/{id}` のレスポンス形を実データで
- * 確認できていないため、推測で実装しない。連鎖が後段の経路へ委ねる。
  */
 export class AjaxPixivSource extends BasePixivSource {
   public readonly name: SourceName = "ajax";
 
   public readonly capabilities: SourceCapabilities = {
-    supportedKinds: ["artwork", "novel", "user"],
+    supportedKinds: ["artwork", "novel", "novel_series", "user"],
     ratingAuthority: "authoritative",
     multiPage: true,
   };
@@ -70,6 +81,8 @@ export class AjaxPixivSource extends BasePixivSource {
         return this.#fetchArtwork(ref, context);
       case "novel":
         return this.#fetchNovel(ref, context);
+      case "novel_series":
+        return this.#fetchNovelSeries(ref, context);
       case "user":
         return this.#fetchUser(ref, context);
       default:
@@ -128,6 +141,25 @@ export class AjaxPixivSource extends BasePixivSource {
     }
 
     return ok(mapAjaxNovel(body, this.#now()));
+  }
+
+  async #fetchNovelSeries(
+    ref: NovelSeriesRef,
+    context: FetchContext,
+  ): Promise<Result<PixivWork, FetchError>> {
+    const envelope = await this.getJson(
+      `${AJAX_BASE}/novel/series/${ref.id}`,
+      novelSeriesEnvelope,
+      context,
+    );
+    if (!envelope.ok) return envelope;
+
+    const body = envelope.value.body;
+    if (envelope.value.error || body === undefined) {
+      return err(envelopeError(envelope.value.message));
+    }
+
+    return ok(mapAjaxNovelSeries(body, this.#now()));
   }
 
   async #fetchUser(ref: UserRef, context: FetchContext): Promise<Result<PixivWork, FetchError>> {

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { AjaxPixivSource } from "#adapters/pixiv/AjaxPixivSource";
 import type { FetchError } from "#core/models/errors";
 import type { PixivRef } from "#core/models/PixivRef";
-import type { IllustWork, NovelWork, UserWork } from "#core/models/PixivWork";
+import type { IllustWork, NovelWork, PixivWork, UserWork } from "#core/models/PixivWork";
 import { err, ok, type Result } from "#core/models/Result";
 import type { HttpRequest, HttpResponse, IHttpClient } from "#core/ports/IHttpClient";
 import type { FetchContext } from "#core/ports/IPixivSource";
@@ -277,16 +277,23 @@ describe("AjaxPixivSource", () => {
     expect(work.partial).toBe(true);
   });
 
-  it("declares unsupported kinds instead of guessing", async () => {
-    // novel_series は /ajax/novel/series/{id} の形を実データで確認できていない。
-    // 推測で実装せず、連鎖に後段を試させる。
-    const { source } = sourceWith({});
-    expect(source.supports({ kind: "novel_series", id: "1", canonicalUrl: "x" })).toBe(false);
-
+  it("fetches a novel series", async () => {
+    const { source } = sourceWith({ "/novel/series/16183010": fixtureText("novel-series") });
     const result = await source.fetch(
-      { kind: "novel_series", id: "1", canonicalUrl: "x" },
+      { kind: "novel_series", id: "16183010", canonicalUrl: "x" },
       context(),
     );
-    expect(result).toEqual(err({ kind: "unsupported", reason: "capability" }));
+
+    expect(result.ok).toBe(true);
+    expect((result as { value: PixivWork }).value.kind).toBe("novel_series");
+  });
+
+  it("reports parse_error for an error envelope on the series endpoint", async () => {
+    const { source } = sourceWith({ "/novel/series/9": fixtureText("error-notfound") });
+    const result = await source.fetch(
+      { kind: "novel_series", id: "9", canonicalUrl: "x" },
+      context(),
+    );
+    expect((result as { error: FetchError }).error.kind).toBe("parse_error");
   });
 });

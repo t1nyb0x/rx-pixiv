@@ -1,0 +1,41 @@
+{
+  "error": false,
+  "message": "",
+  "body": {
+    "id": "16183010",
+    "userId": "79346426",
+    "userName": "緑茶わいん",
+    "title": "紅髪の姫はISと贅肉を纏いて奮戦する",
+    "caption": "長年失われていた神器の回収のため、とあるはぐれ悪魔を追っていたリアス・グレモリー。\nしかし、捕縛前に神器を発動されてしまい──その結果、神器の作り出した別の世界へと転生させられてしまう。\nはぐれ悪魔の願望によって生まれたその世界はとあるライトノベルの世界によく似ており。\nリアスは、かつてイッセーから聞かされた断片的な知識を頼りにIS学園へ入学、同じように転生したはずのはぐれ悪魔を追うことを決意する",
+    "xRestrict": 0,
+    "maxXRestrict": null,
+    "aiType": 1,
+    "publishedContentCount": 3,
+    "displaySeriesContentCount": 3,
+    "total": 3,
+    "publishedTotalCharacterCount": 45329,
+    "createDate": "2026-07-10T19:34:10+09:00",
+    "updateDate": "2026-07-10T19:39:36+09:00",
+    "tags": [
+      "小説",
+      "二次創作",
+      "クロスオーバー",
+      "インフィニット・ストラトス",
+      "ハイスクールD×D",
+      "ソードアート・オンライン",
+      "リアス・グレモリー",
+      "ぽっちゃり"
+    ],
+    "cover": {
+      "urls": {
+        "240mw": "https://i.pximg.net/c/240x480_80/novel-cover-master/img/2026/07/10/19/34/10/sci16183010_dbdd13721dee8cce1cfc4e73ee641f1b_master1200.jpg",
+        "480mw": "https://i.pximg.net/c/480x960/novel-cover-master/img/2026/07/10/19/34/10/sci16183010_dbdd13721dee8cce1cfc4e73ee641f1b_master1200.jpg",
+        "1200x1200": "https://i.pximg.net/c/1200x1200/novel-cover-master/img/2026/07/10/19/34/10/sci16183010_dbdd13721dee8cce1cfc4e73ee641f1b_master1200.jpg",
+        "128x128": "https://i.pximg.net/c/128x128/novel-cover-master/img/2026/07/10/19/34/10/sci16183010_dbdd13721dee8cce1cfc4e73ee641f1b_square1200.jpg",
+        "original": "https://i.pximg.net/novel-cover-original/img/2026/07/10/19/34/10/sci16183010_dbdd13721dee8cce1cfc4e73ee641f1b.png"
+      }
+    },
+    "isOriginal": false,
+    "language": "ja"
+  }
+}

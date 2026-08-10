@@ -13,6 +13,7 @@
 
 | ファイル | 要約 | キーワード |
 |---|---|---|
+| [pixiv-ajax-schema-pitfalls.md](pixiv-ajax-schema-pitfalls.md) | pixiv Ajax API のスキーマ設計 — null と欠落の違い・エンドポイント別の形の差・数値フラグの3値目・観測ツールの信頼度 | pixiv, Ajax API, zod, スキーマ, fixture, 実測, null, maxXRestrict, aiType, exactOptionalPropertyTypes, 非公開API |
 | [design-phase-spike-and-numbering.md](design-phase-spike-and-numbering.md) | 設計フェーズの5つの型 — 実測で前提を潰す・Proposed で残す・採番衝突・**却下理由こそ実測対象**・置換 ADR は残す | 設計フェーズ, 要件定義, ADR, Proposed, Superseded, スパイク, 実測, 採番, 相互参照, Rejected alternatives, 却下理由, ドキュメントレビュー, 骨格プランニング |
 | [typescript-service-scaffold-boundaries.md](typescript-service-scaffold-boundaries.md) | TypeScript サービス基盤の解決経路・設定境界・配布順序を負例で固定する | TypeScript, ESM, package imports, zod, env, oxlint, workflow_call, release-please, CI/CD |
 | [upstream-protection-composition.md](upstream-protection-composition.md) | 上流保護は独立クラスではなく物理試行と論理経路へ合成する | undici, retry, rate limit, circuit breaker, timeout, Node timer, TTL, LRU |

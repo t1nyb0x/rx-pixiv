@@ -1,6 +1,7 @@
 import type { ContentRating } from "#core/models/ContentRating";
 import type {
   IllustWork,
+  NovelSeriesWork,
   NovelWork,
   PixivImage,
   PixivTag,
@@ -12,6 +13,7 @@ import type {
   AjaxIllustBody,
   AjaxIllustPagesBody,
   AjaxNovelBody,
+  AjaxNovelSeriesBody,
   AjaxUserBody,
   AjaxUserProfileTopBody,
 } from "#adapters/pixiv/schemas/ajax";
@@ -80,7 +82,9 @@ export function toContentRating(
     level,
     // v1 では判定手段が無い。判定表とフィールドは将来のために残す（ADR 0006）。
     sensitive: false,
-    ai: aiType === undefined ? "unknown" : aiType === 2 ? "yes" : "no",
+    // pixiv の aiType は 0=未設定 / 1=AI 不使用 / 2=AI 使用。
+    // 0 を「不使用」と断定しない（実測でシリーズに 1 が来ることを確認している）。
+    ai: aiType === 2 ? "yes" : aiType === 1 ? "no" : "unknown",
     // xRestrict が読めた時点で権威ある情報である。
     confidence: xRestrict === undefined ? "inferred" : "authoritative",
   };
@@ -237,6 +241,57 @@ export function mapAjaxNovel(body: AjaxNovelBody, fetchedAt: number): NovelWork 
           : undefined,
       excerpt: toNovelExcerpt(body.content),
       createdAt: body.createDate ?? body.uploadDate,
+    }),
+  };
+}
+
+/**
+ * 小説シリーズを `NovelSeriesWork` へ写像する。
+ *
+ * **`xRestrict` と `maxXRestrict` の強いほうを採る。**
+ * シリーズ自体が全年齢でも配下に R-18 の話数を含みうるため、
+ * シリーズの区分だけで判断すると R-18 を含むシリーズが通常チャンネルで
+ * 展開されてしまう（ADR 0006 のフェイルクローズ）。
+ */
+export function mapAjaxNovelSeries(body: AjaxNovelSeriesBody, fetchedAt: number): NovelSeriesWork {
+  const restrict = Math.max(body.xRestrict, body.maxXRestrict ?? 0);
+  const tags: PixivTag[] = body.tags.map((name) => ({ name }));
+  const coverUrls = body.cover?.urls;
+
+  const coverImage: PixivImage | undefined =
+    coverUrls === undefined
+      ? undefined
+      : {
+          page: 0,
+          urls: compact({
+            thumb: coverUrls["128x128"],
+            small: coverUrls["240mw"],
+            regular: coverUrls["1200x1200"] ?? coverUrls["480mw"],
+            original: coverUrls.original,
+          }),
+        };
+
+  return {
+    kind: "novel_series",
+    id: body.id,
+    canonicalUrl: `https://www.pixiv.net/novel/series/${body.id}`,
+    title: body.title,
+    author: {
+      id: body.userId,
+      name: body.userName,
+      url: userUrl(body.userId),
+    },
+    rating: toContentRating(restrict, tags, body.aiType),
+    source: "ajax",
+    fetchedAt,
+    partial: false,
+    ...compact({
+      description: body.caption,
+      coverImage:
+        coverImage !== undefined && Object.keys(coverImage.urls).length > 0
+          ? coverImage
+          : undefined,
+      novelCount: body.publishedContentCount ?? body.total ?? body.displaySeriesContentCount,
     }),
   };
 }

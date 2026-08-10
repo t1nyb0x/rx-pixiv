@@ -29,6 +29,12 @@ const nullableUrl = z
 
 const count = z.number().int().nonnegative().optional();
 
+/** pixiv は「該当なし」を欠落ではなく null で返すことがある（実測: `maxXRestrict`）。 */
+const nullableInt = z
+  .union([z.number().int(), z.null()])
+  .optional()
+  .transform((v) => (v === null ? undefined : v));
+
 const tagEntry = z.object({
   tag: z.string(),
   translation: z.object({ en: z.string().optional() }).partial().optional(),
@@ -164,6 +170,55 @@ export const ajaxUserProfileTopBodySchema = z.object({
 });
 
 export type AjaxUserProfileTopBody = z.infer<typeof ajaxUserProfileTopBodySchema>;
+
+/**
+ * `/ajax/novel/series/{id}`。
+ *
+ * **他のエンドポイントと形が違う**ので個別に書く:
+ * - `tags` が `{tags:[{tag}]}` ではなく**素の文字列配列**
+ * - 表紙は `cover.urls` にサイズ名キー（`128x128` / `240mw` / `480mw` /
+ *   `1200x1200` / `original`）で入る
+ * - **`maxXRestrict`** が配下エピソードの最も強い年齢制限を表す。
+ *   シリーズ自体の `xRestrict` が 0 でも R-18 の話数を含みうるため、
+ *   年齢判定では両者の**強いほう**を採る（ADR 0006 のフェイルクローズ）
+ */
+export const ajaxNovelSeriesBodySchema = z.object({
+  id: idLike,
+  title: z.string(),
+  userId: idLike,
+  userName: z.string(),
+  caption: nullableText,
+  xRestrict: z.number().int(),
+  /** 配下エピソードの最大制限。**該当なしのとき `null` が入る**（欠落ではない） */
+  maxXRestrict: nullableInt,
+  aiType: z.number().int().optional(),
+  publishedContentCount: count,
+  displaySeriesContentCount: count,
+  total: count,
+  publishedTotalCharacterCount: count,
+  createDate: nullableText,
+  updateDate: nullableText,
+  tags: z
+    .array(z.string())
+    .optional()
+    .transform((v) => v ?? []),
+  cover: z
+    .object({
+      urls: z
+        .object({
+          "128x128": nullableUrl,
+          "240mw": nullableUrl,
+          "480mw": nullableUrl,
+          "1200x1200": nullableUrl,
+          original: nullableUrl,
+        })
+        .partial()
+        .optional(),
+    })
+    .optional(),
+});
+
+export type AjaxNovelSeriesBody = z.infer<typeof ajaxNovelSeriesBodySchema>;
 
 /**
  * `{ error, message, body }` のエンベロープ。

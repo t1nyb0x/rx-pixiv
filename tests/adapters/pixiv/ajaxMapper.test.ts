@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   mapAjaxIllust,
   mapAjaxNovel,
+  mapAjaxNovelSeries,
   mapAjaxUser,
   NOVEL_EXCERPT_LENGTH,
   toContentRating,
@@ -15,6 +16,7 @@ import {
   ajaxIllustBodySchema,
   ajaxIllustPagesBodySchema,
   ajaxNovelBodySchema,
+  ajaxNovelSeriesBodySchema,
   ajaxUserBodySchema,
   ajaxUserProfileTopBodySchema,
 } from "#adapters/pixiv/schemas/ajax";
@@ -65,9 +67,11 @@ describe("toContentRating", () => {
     });
   });
 
-  it("maps aiType", () => {
+  it("treats aiType as tri-state — 0 means unset, not 'not AI'", () => {
+    // 実測: シリーズでは aiType:1 が来る。0=未設定 / 1=不使用 / 2=使用。
     expect(toContentRating(0, [], 2).ai).toBe("yes");
-    expect(toContentRating(0, [], 0).ai).toBe("no");
+    expect(toContentRating(0, [], 1).ai).toBe("no");
+    expect(toContentRating(0, [], 0).ai).toBe("unknown");
     expect(toContentRating(0, [], undefined).ai).toBe("unknown");
   });
 });
@@ -163,6 +167,38 @@ describe("mapAjaxNovel", () => {
     const work = mapAjaxNovel(ajaxNovelBodySchema.parse(body("novel")), FETCHED_AT);
     expect(work.canonicalUrl).toBe(`https://www.pixiv.net/novel/show.php?id=${work.id}`);
     expect(work.coverImage?.urls.regular).toBeDefined();
+  });
+});
+
+describe("mapAjaxNovelSeries", () => {
+  const series = (name: string) => ajaxNovelSeriesBodySchema.parse(body(name));
+
+  it("maps an all-ages series with its cover", () => {
+    const work = mapAjaxNovelSeries(series("novel-series"), FETCHED_AT);
+
+    expect(work.kind).toBe("novel_series");
+    expect(work.canonicalUrl).toBe(`https://www.pixiv.net/novel/series/${work.id}`);
+    expect(work.rating.level).toBe("all");
+    expect(work.novelCount).toBeGreaterThan(0);
+    expect(work.coverImage?.urls.regular).toMatch(/^https:\/\/i\.pximg\.net\//);
+  });
+
+  it("takes the stricter of xRestrict and maxXRestrict", () => {
+    // シリーズ自体は全年齢でも配下に R-18 の話数を含みうる（ADR 0006）。
+    const work = mapAjaxNovelSeries(series("novel-series-r18"), FETCHED_AT);
+    expect(work.rating.level).toBe("r18");
+    expect(work.rating.confidence).toBe("authoritative");
+  });
+
+  it("parses the string-array tag shape used only by series", () => {
+    const parsed = series("novel-series-r18");
+    expect(Array.isArray(parsed.tags)).toBe(true);
+    expect(parsed.tags).toContain("R-18");
+  });
+
+  it("omits the cover when no usable url is present", () => {
+    const raw = { ...series("novel-series"), cover: { urls: {} } };
+    expect(mapAjaxNovelSeries(raw, FETCHED_AT).coverImage).toBeUndefined();
   });
 });
 

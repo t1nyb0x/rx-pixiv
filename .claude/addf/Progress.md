@@ -109,7 +109,8 @@
 - [x] テスト 35件追加（123件全通過・文 95.59% / 分岐 87.59%）
 
 **項目2〜5**（スパイク非依存・`auth_required` の判定条件だけ後回し）
-- [x] `AjaxPixivSource` + `BasePixivSource` ✅ 完了（2026-08-10・テスト152件）
+- [x] `AjaxPixivSource` + `BasePixivSource` ✅ 完了（2026-08-10・テスト157件）
+- [x] `novel_series` 対応（オーナーからシリーズ URL を受領し実測して実装）
 - [ ] `PhixivSource`（二次）
 - [ ] `OgpScrapeSource`（三次）
 - [ ] `PixivSourceChain`（404 で打ち切り・年齢ヒント伝播）
@@ -251,9 +252,40 @@ capabilities で落ちるので連鎖が後段に委ねる。要件では v1 ス
 その次が `OgpScrapeSource` → `PixivSourceChain`。
 
 **気になっていること**:
-- `novel_series` が未実装のまま。要件 2.1 に載っているので、
-  このまま Plan 0005 を完了にはできない。シリーズ ID を入手して埋めるか、
-  要件から外すかの判断が要る
+- ~~`novel_series` が未実装~~ → **解消**（下記）
+
+##### 2026-08-10 — novel_series を実装。実測 fixture が4件の誤りを捕まえた
+
+**やったこと**:
+オーナーからシリーズ URL を受領して `/ajax/novel/series/{id}` を実測し、実装した。
+テスト157件全通過、文 95.55% / 分岐 87.35%。
+
+**推測で書いていたら静かに壊れていた箇所が4つあった:**
+
+1. **`maxXRestrict` は欠落ではなく `null`** で来る。`.optional()` では弾かれる。
+   しかも配下エピソードの最大年齢制限という**年齢ゲート直結のフィールド**。
+   実 API 由来の fixture だから即落ちた。手書き fixture なら本番で初めて壊れていた
+2. **シリーズだけ `tags` が素の文字列配列**（illust/novel は `{tags:[{tag}]}`）
+3. **表紙は `cover.urls` にサイズ名キー**（`128x128`/`240mw`/`480mw`/`1200x1200`/`original`）で、
+   illust の `thumb_mini/small/regular/original` と別物
+4. **`aiType` は3値**（0=未設定 / 1=不使用 / 2=使用）。
+   2値と決めつけて実装していたので **0 を「AI 不使用」と断定**していた。訂正した
+
+**今の見立て**:
+`xRestrict` と `maxXRestrict` の**強いほうを採る**実装にした。
+シリーズ自体が全年齢でも配下に R-18 の話数を含みうるため、
+シリーズの区分だけで判断すると R-18 を含むシリーズが通常チャンネルで展開される。
+
+知見を `.claude/addf/knowhow/pixiv-ajax-schema-pitfalls.md` に記録した。
+
+**次の自分へ**:
+項目3（`PhixivSource`）。phixiv は R-18 に og:image を出さないと実測済みなので
+`ratingAuthority: "inferred"`。その次が `OgpScrapeSource` → `PixivSourceChain` → `WorkResolver`。
+
+**気になっていること**:
+- 分岐カバレッジ 87.35%。閾値 85% への余裕が徐々に減っている（項目1 時点は 87.59%）
+- `firstEpisode` / `latestNovelId` は取ったが使っていない。シリーズの表示で
+  「第1話へのリンク」を出すなら Plan 0007 で拾う
 
 **気になっていること**:
 - スパイクで「WebFetch の観測 → curl で再検証」という二段構えが効いた。
