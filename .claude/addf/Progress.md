@@ -100,10 +100,13 @@
 - [x] `body.urls` → **全年齢でも常に null**。画像 URL は `/pages` からのみ
 - [x] ADR 0007 を **Accepted** で確定、ADR 0003・0006・要件・Plan 0005/0006 に反映
 
-**項目1: スキーマと写像**（スパイク非依存・先行可）
-- [ ] 全年齢作品の実レスポンスを fixture として採取（illust-single / illust-manga / illust-ugoira / novel / user / error-notfound）
-- [ ] zod スキーマ（`ajaxEnvelope` / `ajaxIllust` / `ajaxIllustPages` / `ajaxNovel` / `ajaxUser`）
-- [ ] mapper（純粋関数）とテーブルテスト
+**項目1: スキーマと写像 ✅ 完了（2026-08-10）**
+- [x] fixture 採取（illust-single / pages / novel / user / user-profile-top は実 API から採取。
+      manga / ugoira / r18 / pages-r18-404 / error-notfound は観測した構造から合成）
+- [x] zod スキーマ `src/adapters/pixiv/schemas/ajax.ts`（消費するフィールドのみ・`sl` は載せない）
+- [x] mapper `src/adapters/pixiv/mappers/ajaxMapper.ts`（純粋関数）
+- [x] `escalateRating`（制限を強める方向にのみ更新）を `core/models/ContentRating.ts` に追加
+- [x] テスト 35件追加（123件全通過・文 95.59% / 分岐 87.59%）
 
 **項目2〜5**（スパイク非依存・`auth_required` の判定条件だけ後回し）
 - [ ] `AjaxPixivSource` + `BasePixivSource`
@@ -182,6 +185,42 @@ phixiv も R-18 には og:image を出さないので、画像を出すには認
 - **1ページ作品でも必ず `/pages` を呼ぶ**（`body.urls` に依存しない）
 - **`/pages` の 404 を `not_found` にしない**
 - **`sl` を判定に使わない**
+
+##### 2026-08-10 — 項目1 完了（スキーマと写像）
+
+**やったこと**:
+fixture を実 API から採取し、zod スキーマと mapper を書いた。テスト35件追加で123件全通過。
+
+設計判断を2つ足した:
+
+1. **小説の本文全文をドメインモデルに入れない。** `mapAjaxNovel` が `content` から
+   抜粋だけを切り出し、`NovelWork` には `excerpt` しか持たせない。
+   ADR 0013 は「全文を転載しない」と決めていたが、**全文がドメインに入る限り
+   描画層で漏らす経路が残る**。入口で落とせば構造的に塞がる。
+   テストで「ドメインオブジェクトを JSON 化しても本文が出てこない」ことを検証している
+2. **`escalateRating` を `core/models/ContentRating.ts` に置いた。**
+   「制限は強める方向にしか更新できない」は連鎖の安全性そのものなので、
+   アダプタ側ではなくドメインの純粋関数にした
+
+fixture については、実 API から採ったのは全年齢作品のみ。
+R-18 は ADR 0006 の既知の限界2 のとおり、**観測した構造（`xRestrict:1` / `aiType:2` /
+`pageCount:8` / urls 全 null）だけを合成 fixture に落とし、実データの内容は残していない**。
+
+**今の見立て**:
+`exactOptionalPropertyTypes: true` が効いていて `{ x: undefined }` を弾く。
+`compact()` ヘルパで `undefined` キーを落として通した。以降の mapper でも同じ手が要る。
+
+**次の自分へ**:
+項目2（`AjaxPixivSource` + `BasePixivSource`）。ここで**404 の写像を
+エンドポイント別に分ける**のが山場。`/ajax/illust/{id}` の 404 は `not_found`、
+`/pages` の 404 は `not_found` にせず画像ゼロ枚で続行する。
+mapper 側は `pages` を省略可能にしてあるので、ソース側で 404 を握って `undefined` を渡せばよい。
+
+**気になっていること**:
+- `profileWorkMap` が `z.record` で来る想定だが、作品ゼロのユーザーでは配列 `[]` が返る
+  可能性を union で吸収している。実データで空ユーザーを確認していない
+- カバレッジの分岐 87.59% は閾値 85% を超えているが余裕が薄い。
+  項目2 以降でソースを足すときに落ちやすい
 
 **気になっていること**:
 - スパイクで「WebFetch の観測 → curl で再検証」という二段構えが効いた。

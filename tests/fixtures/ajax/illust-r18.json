@@ -1,0 +1,39 @@
+{
+  "error": false,
+  "message": "",
+  "body": {
+    "illustId": "900000003",
+    "illustTitle": "テスト用 R-18 作品",
+    "illustComment": "",
+    "description": "",
+    "createDate": "2022-08-11T14:46:00+00:00",
+    "uploadDate": "2022-08-11T14:46:00+00:00",
+    "illustType": 0,
+    "xRestrict": 1,
+    "restrict": 0,
+    "sl": 6,
+    "aiType": 2,
+    "pageCount": 8,
+    "userId": "900000",
+    "userName": "テスト作者",
+    "userAccount": "test_author",
+    "urls": {
+      "mini": null,
+      "thumb": null,
+      "small": null,
+      "regular": null,
+      "original": null
+    },
+    "likeCount": 6812,
+    "bookmarkCount": 11224,
+    "viewCount": 45901,
+    "commentCount": 17,
+    "tags": {
+      "tags": [
+        {
+          "tag": "R-18"
+        }
+      ]
+    }
+  }
+}

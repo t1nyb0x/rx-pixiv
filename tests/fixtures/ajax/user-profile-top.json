@@ -1,0 +1,136 @@
+{
+  "error": false,
+  "message": "",
+  "body": {
+    "illusts": {
+      "148115502": {
+        "id": "148115502",
+        "title": "「カンロ×pixiv 空想果実小説コンテスト」開催",
+        "url": "https://i.pximg.net/c/250x250_80_a2/img-master/img/2026/08/07/12/02/30/148115502_p0_square1200.jpg",
+        "illustType": 0,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 1,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "148040421": {
+        "id": "148040421",
+        "title": "「第7回 GALLERIAイラストコンテスト」　開催",
+        "url": "https://i.pximg.net/c/250x250_80_a2/img-master/img/2026/08/05/12/00/01/148040421_p0_square1200.jpg",
+        "illustType": 0,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 1,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "147964372": {
+        "id": "147964372",
+        "title": "マンガ投稿企画『ツキコミ〜玉〜』開催",
+        "url": "https://i.pximg.net/c/250x250_80_a2/img-master/img/2026/08/03/10/39/22/147964372_p0_square1200.jpg",
+        "illustType": 0,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 5,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "147848066": {
+        "id": "147848066",
+        "title": "FANBOXプリント:2026年7月のおすすめプリント商品",
+        "url": "https://i.pximg.net/c/250x250_80_a2/img-master/img/2026/07/31/19/39/45/147848066_p0_square1200.jpg",
+        "illustType": 0,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 13,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      }
+    },
+    "manga": {
+      "147835788": {
+        "id": "147835788",
+        "title": "comic LAKE7月コミックス発売情報",
+        "url": "https://i.pximg.net/c/250x250_80_a2/custom-thumb/img/2026/07/31/12/01/52/147835788_p0_custom1200.jpg",
+        "illustType": 1,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 56,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "147798644": {
+        "id": "147798644",
+        "title": "Palcy×pixiv異世界7月コミックス発売情報",
+        "url": "https://i.pximg.net/c/250x250_80_a2/custom-thumb/img/2026/07/30/12/01/46/147798644_p0_custom1200.jpg",
+        "illustType": 1,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 64,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "147725548": {
+        "id": "147725548",
+        "title": "comic POOL7月コミックス発売情報",
+        "url": "https://i.pximg.net/c/250x250_80_a2/custom-thumb/img/2026/07/28/12/00/37/147725548_p0_custom1200.jpg",
+        "illustType": 1,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 11,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "147529220": {
+        "id": "147529220",
+        "title": "【pixivマンガ月例賞】2026年5月投稿分結果発表！",
+        "url": "https://i.pximg.net/c/250x250_80_a2/custom-thumb/img/2026/07/23/10/28/01/147529220_p0_custom1200.jpg",
+        "illustType": 1,
+        "xRestrict": 0,
+        "aiType": 1,
+        "pageCount": 10,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      }
+    },
+    "novels": {
+      "28796114": {
+        "id": "28796114",
+        "title": "「カンロ×pixiv 空想果実小説コンテスト」開催",
+        "url": "https://i.pximg.net/c/600x600/novel-cover-master/img/2026/08/07/12/06/24/ci28796114_f730ae07c76b70456d186b8105f20c97_master1200.jpg",
+        "xRestrict": 0,
+        "aiType": 1,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "28678286": {
+        "id": "28678286",
+        "title": " 投稿企画「Summer Festival」開催",
+        "url": "https://i.pximg.net/c/600x600/novel-cover-master/img/2026/07/24/10/41/32/ci28678286_d78ba01bd743050455a61210d56044df_master1200.jpg",
+        "xRestrict": 0,
+        "aiType": 1,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "28598464": {
+        "id": "28598464",
+        "title": "「pixiv×C108 コミケサークル告知投稿企画」開催！",
+        "url": "https://i.pximg.net/c/600x600/novel-cover-master/img/2026/07/14/11/10/57/ci28598464_f05de0932b84686c108765427eca1231_master1200.jpg",
+        "xRestrict": 0,
+        "aiType": 1,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      },
+      "28557120": {
+        "id": "28557120",
+        "title": "小説企画「執筆応援プロジェクト～秘密～」開催 ",
+        "url": "https://i.pximg.net/c/600x600/novel-cover-master/img/2026/07/09/11/01/32/ci28557120_9e0170aefec0731e72975e74e7b6c58f_master1200.jpg",
+        "xRestrict": 0,
+        "aiType": 1,
+        "userId": "11",
+        "userName": "pixiv事務局"
+      }
+    }
+  }
+}
