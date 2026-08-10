@@ -4,12 +4,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  parseOgpMeta,
   parseTags,
   PhixivSource,
   PHIXIV_USER_AGENT,
   splitTitle,
 } from "#adapters/pixiv/PhixivSource";
+import { parseMetaTags } from "#adapters/pixiv/ogpMeta";
 import type { FetchError } from "#core/models/errors";
 import type { PixivRef } from "#core/models/PixivRef";
 import type { IllustWork } from "#core/models/PixivWork";
@@ -132,16 +132,16 @@ describe("PhixivSource", () => {
   });
 });
 
-describe("phixiv OGP parsing", () => {
+describe("OGP meta parsing", () => {
   it("reads the first occurrence of each og property", () => {
-    const meta = parseOgpMeta(
+    const meta = parseMetaTags(
       '<meta property="og:title" content="A"><meta property="og:title" content="B">',
     );
     expect(meta.get("og:title")).toBe("A");
   });
 
   it("decodes html entities", () => {
-    const meta = parseOgpMeta('<meta property="og:title" content="a &amp; b &quot;c&quot;">');
+    const meta = parseMetaTags('<meta property="og:title" content="a &amp; b &quot;c&quot;">');
     expect(meta.get("og:title")).toBe('a & b "c"');
   });
 

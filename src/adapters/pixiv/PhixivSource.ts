@@ -1,10 +1,11 @@
 import type { FetchError } from "#core/models/errors";
 import type { ArtworkRef, PixivRef } from "#core/models/PixivRef";
-import type { IllustWork, PixivTag, PixivWork, SourceName } from "#core/models/PixivWork";
+import type { IllustWork, PixivWork, SourceName } from "#core/models/PixivWork";
 import { err, ok, type Result } from "#core/models/Result";
 import type { FetchContext, SourceCapabilities } from "#core/ports/IPixivSource";
 import { BasePixivSource, type BasePixivSourceOptions } from "#adapters/pixiv/BasePixivSource";
 import { toContentRating } from "#adapters/pixiv/mappers/ajaxMapper";
+import { parseHashTagList, parseMetaTags } from "#adapters/pixiv/ogpMeta";
 
 export const PHIXIV_DEFAULT_BASE_URL = "https://phixiv.net";
 
@@ -62,14 +63,14 @@ export class PhixivSource extends BasePixivSource {
     const html = await this.getText(`${this.#baseUrl}/artworks/${ref.id}`, context);
     if (!html.ok) return html;
 
-    const meta = parseOgpMeta(html.value);
+    const meta = parseMetaTags(html.value);
     const title = meta.get("og:title");
     const image = meta.get("og:image");
 
     // タイトルが取れない＝OGP ページではない（307 の転送先など）。
     if (title === undefined) return err({ kind: "parse_error", sample: html.value.slice(0, 200) });
 
-    const tags = parseTags(meta.get("og:image:alt"));
+    const tags = parseHashTagList(meta.get("og:image:alt"));
     const { title: workTitle, authorName } = splitTitle(title);
 
     const work: IllustWork = {
@@ -97,47 +98,12 @@ export class PhixivSource extends BasePixivSource {
   }
 }
 
-const META_PATTERN = /<meta\s+(?:property|name)="(og:[^"]+)"\s+content="([^"]*)"/gi;
-
-/**
- * phixiv の OGP メタタグを読む。
- *
- * 生成される HTML は機械的で小さいため、専用パーサを持ち込まず正規表現で読む。
- * 構造が変われば `og:title` が取れなくなり `parse_error` として後段へ落ちる。
- */
-export function parseOgpMeta(html: string): Map<string, string> {
-  const meta = new Map<string, string>();
-  for (const match of html.matchAll(META_PATTERN)) {
-    const [, key, value] = match;
-    if (key !== undefined && value !== undefined && !meta.has(key)) {
-      meta.set(key, decodeEntities(value));
-    }
-  }
-  return meta;
-}
-
 /** `og:image:alt` は `#tag1, #tag2, ...` 形式でタグを列挙する。 */
-export function parseTags(alt: string | undefined): PixivTag[] {
-  if (alt === undefined) return [];
-  return alt
-    .split(",")
-    .map((part) => part.trim().replace(/^#/, ""))
-    .filter((name) => name !== "")
-    .map((name) => ({ name }));
-}
+export const parseTags = parseHashTagList;
 
 /** `og:title` は `作品タイトル by (@作者名)` 形式。 */
 export function splitTitle(raw: string): { title: string; authorName?: string } {
   const match = /^(.*)\s+by\s+\(@(.*)\)$/s.exec(raw);
   if (match?.[1] === undefined || match[2] === undefined) return { title: raw };
   return { title: match[1], authorName: match[2] };
-}
-
-function decodeEntities(value: string): string {
-  return value
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&amp;", "&");
 }
