@@ -87,7 +87,104 @@
 
 ## タスク
 
-（現在タスクなし）
+### 現在のタスク: Plan 0005 Ajax ソースとフォールバック連鎖
 
-> 新しいタスク開始時は以下の構造で記録する:
-> `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
+#### サブタスクチェックリスト
+
+**フェーズ0: スパイク ✅ 完了（2026-08-10）**
+- [x] 無認証で R-18 の `/ajax/illust/{id}` を叩き応答を記録 → **200・`xRestrict:1`・`aiType:2`**
+- [x] `auth_required` と `unavailable` の区別 → **そもそも `auth_required` が発生しない**
+- [x] `sl` の実測 → **全年齢でも 6。判定に使えない**（要件 Q-5 は否定的結論で解消）
+- [x] phixiv が R-18 を返すか → **og:image 無し。代替供給源にならない**
+- [x] `/pages` の挙動 → **R-18 では 404**（作品は実在するので `not_found` に写像禁止）
+- [x] `body.urls` → **全年齢でも常に null**。画像 URL は `/pages` からのみ
+- [x] ADR 0007 を **Accepted** で確定、ADR 0003・0006・要件・Plan 0005/0006 に反映
+
+**項目1: スキーマと写像**（スパイク非依存・先行可）
+- [ ] 全年齢作品の実レスポンスを fixture として採取（illust-single / illust-manga / illust-ugoira / novel / user / error-notfound）
+- [ ] zod スキーマ（`ajaxEnvelope` / `ajaxIllust` / `ajaxIllustPages` / `ajaxNovel` / `ajaxUser`）
+- [ ] mapper（純粋関数）とテーブルテスト
+
+**項目2〜5**（スパイク非依存・`auth_required` の判定条件だけ後回し）
+- [ ] `AjaxPixivSource` + `BasePixivSource`
+- [ ] `PhixivSource`（二次）
+- [ ] `OgpScrapeSource`（三次）
+- [ ] `PixivSourceChain`（404 で打ち切り・年齢ヒント伝播）
+- [ ] `shortlink.ts`（pixiv.me 解決）
+- [ ] `WorkResolver`（キャッシュ→連鎖→キャッシュ）
+
+**項目6: 任意の pixiv セッション**（スパイク結果次第で実装可否を決める）
+- [ ] `PixivSession`（実装する場合のみ）
+
+**仕上げ**
+- [ ] `.env.example` に Plan 0005 で増える変数を追加（`FETCH_TOTAL_BUDGET_MS` / `PHIXIV_BASE_URL` 等）
+- [ ] 品質ゲート（lint / fmt:check / typecheck / test:coverage / build）
+- [ ] コードレビュー・知見記録・コミット
+
+#### 日記
+
+##### 2026-08-10 — Plan 0005 着手
+
+**やったこと**:
+状況確認から入った。私が設計を push したあと、Plan 0002〜0004 が実装されていた。
+品質ゲートを自分で回して全て緑を確認（88テスト・文 94.72%・分岐 87.8%）。
+ADR との整合も抜き取りで確認 —— `ContentRating.confidence` は3値で存在し、
+ports は非同期、レイヤ規則は `scripts/verify-layer-lint.mjs` で実際に強制されている。
+設計どおりに実装されていた。
+
+オーナー判断で **Plan 0005 単独**（0011 との worktree 並列はしない）、
+R-18 スパイク用の作品 ID は**オーナーから受領する**ことになった。
+
+**今の見立て**:
+スパイクは Plan 0005 全体のごく一部（`auth_required` の判定条件を決めるだけ）で、
+残りは全部スパイク非依存。ID を待つ間に項目1〜5 を進められる。
+`.env.example` は Plan 0005/0006 で増える変数（`FETCH_TOTAL_BUDGET_MS`・
+`PHIXIV_BASE_URL`・`SENSITIVE_IN_SFW`・`UNKNOWN_RATING_SFW`・`MEDIA_FALLBACK`・
+`IMAGE_VARIANT_PREFERENCE`）がまだ無い。該当 Plan で足すこと。
+
+**次の自分へ**:
+項目1（fixture 採取 + zod スキーマ + mapper）から。
+**fixture は実 API から採るが、消費するフィールドだけをスキーマに書く**こと。
+全フィールドを写経しない（Plan 0005 項目1 の指示）。
+コミットは項目単位で刻む。一気に抱えない。
+
+**気になっていること**:
+- R-18 作品 ID が未受領。フェーズ0 とそれに依存する `auth_required` の判定条件だけが待ち
+- fixture に採る実レスポンスは全年齢作品のみ。R-18 は ADR 0006 の既知の限界2 のとおり
+  リポジトリに置けないので、スパイクで観測した**構造だけ**を合成 fixture に落とす
+
+##### 2026-08-10 — スパイク完了。設計に4箇所の訂正が出た
+
+**やったこと**:
+オーナーから R-18 作品 ID を受領してスパイクを実施。
+WebFetch では `urls` が null に見えたが、**正規 UA + Referer の curl で再検証**して確定させた
+（ヘッダを制御できないツールの観測を鵜呑みにしないこと）。
+
+結果は当初の想定より良かった。**年齢区分は無認証で `authoritative` に取れる**。
+一方で、設計に**4箇所の誤り**が見つかった:
+
+1. **`body.urls` は全年齢作品でも常に null。** 画像 URL は `/pages` からしか取れない。
+   → ADR 0003 の「`/pages` が失敗しても1ページ目だけで返す」は**成立しない**。訂正した
+2. **`/pages` の 404 は「作品が無い」ではない。** R-18 では作品が実在するのに 404。
+   → 無条件に `not_found` へ写像すると**実在作品に「見つかりません」と誤報する**。
+   ADR 0003 に「404 の取り扱い」節を新設した
+3. **`sl` は判定に使えない。** 全年齢作品でも 6。`sl >= 4 → sensitive` は誤り。
+   → v1 では `sensitive` を常に false にする。判定表とフィールドは将来のために残す
+4. **`auth_required` からの推論は不要になった。** `xRestrict` が直接取れるため予備に降格
+
+**今の見立て**:
+ADR 0007 は Accepted で確定。**安全側の判定に認証は要らない**という結論は大きい。
+PHPSESSID は「年齢制限チャンネルで R-18 の**画像**を見せる」ためだけの追加機能になった。
+phixiv も R-18 には og:image を出さないので、画像を出すには認証以外の道が無い。
+
+**次の自分へ**:
+項目1（fixture 採取 + zod スキーマ + mapper）から。実装で外してはいけないのは3点:
+- **1ページ作品でも必ず `/pages` を呼ぶ**（`body.urls` に依存しない）
+- **`/pages` の 404 を `not_found` にしない**
+- **`sl` を判定に使わない**
+
+**気になっていること**:
+- スパイクで「WebFetch の観測 → curl で再検証」という二段構えが効いた。
+  ヘッダを制御できないツールの結果だけで設計判断をしないこと。knowhow に残す価値がある
+- 要件 Q-3（PHPSESSID を実際に供給するか）は未決のまま。ただし**急がない**。
+  供給しなくても安全性は損なわれず、画像が出ないだけ

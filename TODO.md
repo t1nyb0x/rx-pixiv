@@ -3,13 +3,13 @@
 `.claude/addf/plans/` の完了状態・優先度をトラックする。
 `.claude/addf/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: Plan 0005（Ajax ソースとフォールバック連鎖）着手待ち
+## 現在のフェーズ: Plan 0005（Ajax ソースとフォールバック連鎖）着手中
 
 ## バックログ
 
 | 優先度 | Phase | 計画ファイル | 状態 |
 |---|---|---|---|
-| 3 | 0005 | [Ajax ソースとフォールバック連鎖](.claude/addf/plans/0005-ajax-source-and-chain.md) | 未着手（着手可能・**R-18 スパイクを内包**） |
+| 3 | 0005 | [Ajax ソースとフォールバック連鎖](.claude/addf/plans/0005-ajax-source-and-chain.md) | **着手中**（フェーズ0 スパイク完了・項目1 以降が残り） |
 | 3 | 0006 | [NSFW ゲートとメディア URL 組み立て](.claude/addf/plans/0006-nsfw-gate-and-media.md) | 未着手（0003+0005 依存） |
 | 4 | 0007 | [Discord レンダリングと messageCreate 配線](.claude/addf/plans/0007-rendering-and-wiring.md) | 未着手（0005+0006 依存） |
 | 4 | 0011 | [管理コマンド・濫用対策・Redis 永続化](.claude/addf/plans/0011-admin-and-abuse-control.md) | 未着手（着手可能・0007 と `MessageHandler` で重なる） |
@@ -36,7 +36,7 @@
 | ~~GitHub に `t1nyb0x/rx-pixiv` を作成する~~ → **解消**（作成・初回 push 済み） | Plan 0001 | — |
 | ~~pixiv 画像を Discord 添付として再配信する権利上の姿勢の許容~~ → **解消**（[ADR 0014](docs/adr/0014-media-delivery-via-proxy-url.md) で URL 埋め込みに変更し、再配信しなくなった） | — | — |
 | 展開拒否リストを Redis ではなく JSON ファイルで持つ選択肢（僅差） | [ADR 0016](docs/adr/0016-redis-for-persistent-state.md) | コンテナを増やしたくない事情があれば知らせてほしい |
-| `PIXIV_PHPSESSID` を供給するか（アカウント停止リスクの受容） | [ADR 0007](docs/adr/0007-pixiv-session-optional.md)（Proposed） | Plan 0005 のスパイク後に判断 |
+| `PIXIV_PHPSESSID` を供給するか（アカウント停止リスクの受容） | [ADR 0007](docs/adr/0007-pixiv-session-optional.md)（**Accepted**） | **供給しなくても安全性は損なわれない**（年齢判定は無認証で成立）。年齢制限チャンネルで R-18 の**画像**を出したい場合のみ必要 |
 | ~~ギルド/チャンネル許可リストを v1 に入れるか~~ → **解消**（v1 に導入済み、空 = 全許可） | Plan 0002 | — |
 
 ---

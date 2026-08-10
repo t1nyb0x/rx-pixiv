@@ -15,8 +15,9 @@ Discord にとっては通報対象であり、その場に居合わせた人に
 
 判断を難しくする事情が3つある。
 
-1. 年齢区分の確定には作品メタデータが要るが、**R-18 作品は無認証の Ajax API では
-   取得できない可能性が高い**。つまり「危険なものほど情報が取れない」
+1. 年齢区分の確定には作品メタデータが要る。設計時は「R-18 は無認証では取れないのでは」と
+   懸念していたが、**実測により `xRestrict` は無認証で取得できると判明した**
+   （[ADR 0007](0007-pixiv-session-optional.md)）。取れないのは**画像だけ**である
 2. Discord のスレッドは `nsfw` 属性を**持たない**。親チャンネルから継承する必要があり、
    ここは沈黙する偽陰性（危険なのに安全と判定する）の温床になる
 3. DM には年齢制限属性という概念自体が無い
@@ -34,7 +35,7 @@ type RatingConfidence = "authoritative" | "inferred" | "unknown";
 
 interface ContentRating {
   level: RatingLevel;
-  sensitive: boolean;              // pixiv の sanity level >= 4。xRestrict とは別軸
+  sensitive: boolean;              // xRestrict とは別軸。v1 では常に false（後述）
   ai: "no" | "yes" | "unknown";
   confidence: RatingConfidence;
 }
@@ -45,15 +46,36 @@ interface ContentRating {
 
 | 経路 | 判定材料 | confidence |
 |---|---|---|
-| Ajax | `xRestrict`（0/1/2）、`sl`、`aiType`、タグ | `authoritative` |
+| Ajax | **`xRestrict`（0/1/2）**、`aiType`、タグ | `authoritative` |
 | phixiv | `R-18` タグの有無 | `inferred` |
 | OGP スクレイプ | 年齢確認インタースティシャルの検出 | `inferred` または `unknown` |
 | いずれかが `auth_required` | **弾かれた事実そのもの** | `inferred` / level `r18` |
 
-最後の行が要である。**無認証で弾かれたという事実は、
+> **2026-08-10 の実測による更新**:
+> 当初は「R-18 は無認証で取得できないので、弾かれた事実を証拠に使う」という設計だった。
+> 実測の結果、**`/ajax/illust/{id}` は R-18 でも 200 を返し `xRestrict` がそのまま入っている**
+> ことが分かった（[ADR 0007](0007-pixiv-session-optional.md) の実測結果）。
+> したがって**年齢区分は無認証で直接・権威的に取得できる**。
+> `auth_required` からの推論は、Ajax 経路が使えない場合の**予備**に降格した。
+>
+> 併せて、**`sl`（sanity level）は判定に使えない**ことが判明した。
+> 全年齢作品でも `sl: 6` が返るため、当初の「`sl >= 4` ならセンシティブ」は誤りだった。
+> **v1 では `sensitive` の判定を `sl` に基づいて行わない**（下記「センシティブの扱い」）。
+
+`auth_required` の行は予備の経路として残す。**無認証で弾かれたという事実は、
 その作品が年齢制限されていることの証拠になる。**
-これにより pixiv 認証がなくても本 ADR は成立する。
 連鎖の後段は制限を**強める方向にしか**更新できない。
+
+### センシティブの扱い（v1）
+
+`sl` が使えない以上、「全年齢だがセンシティブ」を機械的に判定する手段が v1 には無い。
+
+- **v1 では `sensitive` を常に `false` とする。** 判定表の該当行は事実上使われない
+- 判定表とフィールド自体は**残す**。将来 pixiv 側に使える指標が見つかったとき、
+  `NsfwPolicy` を変えずに接続できるようにしておく
+- センシティブ相当の作品は `xRestrict` が付いていれば R-18 として正しく扱われる。
+  付いていないものは全年齢として展開される —— これは pixiv 側の区分に従う判断であり、
+  Bot 独自の推測で全年齢作品をスポイラー化するよりも予測可能である
 
 ### 2. 判定表
 
@@ -62,7 +84,7 @@ interface ContentRating {
 | 年齢区分 ＼ チャンネル | 年齢制限チャンネル | 通常チャンネル |
 |---|---|---|
 | `all`（センシティブでない） | `expand_plain` | `expand_plain` |
-| `all` かつ `sensitive`（sl ≥ 4） | `expand_spoiler` | `expand_spoiler`（`SENSITIVE_IN_SFW` で調整可） |
+| `all` かつ `sensitive` | `expand_spoiler` | `expand_spoiler`（`SENSITIVE_IN_SFW` で調整可）<br>**v1 では `sensitive` が常に false のため未使用** |
 | `r18` / `r18g` | `expand_spoiler` | **`link_only`** |
 | `confidence: unknown` | `link_only` | **`skip`** |
 
@@ -117,7 +139,8 @@ Discord の**全 `ChannelType` を網羅するテーブルテストを必須**�
 
 ### Positive
 
-- pixiv 認証がなくても年齢ゲートが機能する。`auth_required` 自体が信号になるため
+- **pixiv 認証がなくても年齢ゲートが完全に機能する。** `xRestrict` を無認証で
+  `authoritative` に取得できるため、推論に頼る必要すらない
 - 「分からない」が型に現れるので、フェイルクローズが実装漏れではなく既定動作になる
 - `link_only` の内容を絞ることで、テキスト経由の漏洩も塞げる
 - 判定が `NsfwPolicy` の純粋関数1つに集約され、全直積のテーブルテストで担保できる
@@ -125,19 +148,20 @@ Discord の**全 `ChannelType` を網羅するテーブルテストを必須**�
 ### Negative
 
 - **偽陽性が出る**。取得に失敗しただけの全年齢作品が、通常チャンネルで無反応になる
-- 認証なしでは、年齢制限チャンネルでも R-18 が `link_only` に留まることが多くなり、
-  オーナーの方針の利得が目減りする
-- センシティブ（sl ≥ 4）判定は pixiv 側の基準に依存し、
-  体感とずれることがある（全年齢作品が不必要にスポイラーになる）
+- 認証なしでは、年齢制限チャンネルでも R-18 の**画像**を出せない
+  （メタデータは出せる）。オーナーの方針の利得が画像に関しては目減りする
+- **`sensitive`（全年齢だがきわどい）を機械的に判定する手段が v1 に無い。**
+  `sl` が使えないため、この軸は事実上死んでいる
 
 ### Mitigation
 
 - 偽陽性は `pixiv_render_total{decision}` で計測する。
   `skip` の急増は年齢判定またはその上流の故障を意味するので、
   メトリクスのアラート対象にする
-- 認証による改善余地は [ADR 0007](0007-pixiv-session-optional.md) に切り出す。
-  未確定の事実（無認証で R-18 を叩いたときの応答形）を実測してから決める
-- `SENSITIVE_IN_SFW` を環境変数として用意し、運用でしきい値を調整できるようにする
+- 認証による改善余地は [ADR 0007](0007-pixiv-session-optional.md) に切り出した（実測済み・Accepted）
+- `sensitive` の軸はフィールドと判定表を残したまま常に false とする。
+  将来使える指標が見つかったとき、`NsfwPolicy` を変えずに接続できる
+- `SENSITIVE_IN_SFW` を環境変数として用意し、指標が入った時点で調整できるようにする
 - **偽陽性（出るべきものが出ない）は許容し、偽陰性（出てはならないものが出る）は許容しない。**
   この非対称性が本 ADR の核である
 
@@ -173,10 +197,11 @@ Bot は自分の投稿を制御できるだけで、Discord 自身の展開ま�
 
 対処:
 
-- [Plan 0005](../../.claude/addf/plans/0005-ajax-source-and-chain.md) のスパイクで、
-  実データに対して**一度だけ**手元で写像を確認し、
-  **観測した構造（フィールド名と値域）だけを**合成 fixture に落とす
-- `xRestrict` / `sl` / タグの3経路で冗長に判定し、単一フィールドの誤読で倒れないようにする
+- [Plan 0005](../../.claude/addf/plans/0005-ajax-source-and-chain.md) のスパイクで**実施済み**。
+  観測した構造（`xRestrict: 1` / `aiType: 2` / `/pages` が 404 / `body.urls` が null）だけを
+  合成 fixture に落とす。実データの内容はリポジトリに残さない
+- `xRestrict` と **`R-18` / `R-18G` タグ**の2経路で冗長に判定し、単一フィールドの誤読で倒れないようにする
+  （`sl` は全年齢作品でも 6 を返すため判定に使えない）
 - `pixiv_render_total{decision}` を監視する。`skip` の急増と、
   **R-18 判定の急減**の両方をアラート対象にする（後者は写像が壊れた兆候である）
 

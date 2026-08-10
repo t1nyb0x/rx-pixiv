@@ -50,6 +50,8 @@ edge: blocked-by 0005
 - 判定表は [ADR 0006](../../../docs/adr/0006-age-restricted-content.md) の通り
 - **`confidence: "unknown"` は制限ありとして扱う**（フェイルクローズ）
 - 環境変数 `SENSITIVE_IN_SFW` / `UNKNOWN_RATING_SFW` / `SPOILER_IN_NSFW` で調整可能
+- **`sensitive` は v1 では常に false**（`sl` が全年齢作品でも 6 を返し判定に使えないため。
+  Plan 0005 フェーズ0 の実測結果）。判定表とフィールドは残し、将来の指標に備える
 - **純粋関数として書く**（discord.js に依存しない）
 
 ### 項目3: 画像 URL の書き換え
@@ -116,8 +118,9 @@ ADR 0014 への切り替えにより、**当初計画から以下が不要にな
 > **[ADR 0006 の既知の限界2](../../../docs/adr/0006-age-restricted-content.md)**:
 > R-18 の実レスポンスを fixture としてリポジトリに置けないため、
 > **実データ → `ContentRating` の写像だけは継続的な検証の外側にある**。
-> Plan 0005 のスパイクで観測した構造（フィールド名と値域）を合成 fixture に落とし、
-> `xRestrict` / `sl` / タグの3経路で冗長に判定することで、単一フィールドの誤読で倒れないようにする。
+> Plan 0005 のスパイクで観測した構造（`xRestrict:1` / `aiType:2` / `/pages` が 404 /
+> `body.urls` が null）を合成 fixture に落とし、
+> `xRestrict` と `R-18` タグの2経路で冗長に判定することで、単一フィールドの誤読で倒れないようにする。
 
 ## 破壊的変更の許容範囲
 
@@ -135,7 +138,8 @@ ADR 0014 への切り替えにより、**当初計画から以下が不要にな
 - [ ] `original` サイズが選択されないことがテストで担保されている
 - [ ] 部分失敗時に取れた分だけ表示される
 - [ ] `NsfwPolicy` が discord.js に依存していない（純粋関数）
-- [ ] `xRestrict` / `sl` / タグの3経路で年齢区分を判定している（単一フィールド依存でない）
+- [ ] `xRestrict` と `R-18`/`R-18G` タグの**2経路**で年齢区分を判定している（`sl` は使わない）
+- [ ] `sensitive` が v1 では常に false になっている
 - [ ] `PXIMG_PROXY_BASE_URL` を差し替えるだけでプロキシの向き先が変わる
 
 ## AI 実装時間見積もり

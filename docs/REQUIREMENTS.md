@@ -174,7 +174,8 @@ rx-pixiv は、この欠けたプレビューを Bot 側で補う。
   開いている経路は待たずに即スキップする
 - 経路の並びは環境変数 `SOURCE_CHAIN` で変更できる。
   死んだ経路をコード変更もリリースも無しに外せることが、この Bot で最も価値のある運用つまみ
-- pixiv 認証（PHPSESSID）は**任意**。未設定でも全機能が縮退動作する
+- pixiv 認証（PHPSESSID）は**任意**。未設定でも全機能が縮退動作する。
+  **年齢判定には認証を要しない**（`xRestrict` が無認証で取れるため）
 
 ### NFR-4 品質
 
@@ -214,7 +215,7 @@ rx-pixiv は、この欠けたプレビューを Bot 側で補う。
 | # | 制約 |
 |---|---|
 | C-1 | `i.pximg.net` は `Referer: https://www.pixiv.net/` を要求する。Discord の埋め込みプロキシはこれを付けられない |
-| C-2 | R-18 作品は無認証の Ajax API では取得できない可能性が高い。**ただし「取得できなかったこと」自体が R-18 の証拠として使える** |
+| C-2 | **R-18 作品でも `/ajax/illust/{id}` は 200 を返し `xRestrict` が取れる**（実測済み）。取得できないのは**画像だけ**で、`/ajax/illust/{id}/pages` が 404 になる。したがって年齢判定に認証は不要 |
 | C-3 | 複数ページ作品は最大200ページ。Discord は 1メッセージあたり embed 10・MediaGallery item 10 |
 | C-4 | `MediaGalleryItem` の `spoiler` は**外部 URL に対しても効く**（添付に限らない）。ただし v1 Embed では効かない |
 | C-5 | phixiv の本家（HazelTheWitch/phixiv）は 2026-06 にアーカイブ済み。フォーク（thelaao/phixiv）が稼働中で `/api/info` は廃止済み。**画像プロキシ `/i/<path>` は稼働を実測で確認済み**。Rust 製・Dockerfile 同梱で自前ホスト可能 |
@@ -238,7 +239,11 @@ rx-pixiv は、この欠けたプレビューを Bot 側で補う。
 | エンドポイント | 結果 |
 |---|---|
 | `GET /ajax/illust/{id}` | 無認証で `{error:false, body:{...}}`。`i.pximg.net` の URL を含む |
-| `GET /ajax/illust/{id}/pages` | `body` は配列。要素は `urls{thumb_mini,small,regular,original}` + `width`/`height` |
+| `GET /ajax/illust/{id}/pages` | `body` は配列。要素は `urls{thumb_mini,small,regular,original}` + `width`/`height`。**画像 URL はここからしか取れない**（`/ajax/illust/{id}` の `body.urls` は全年齢作品でも常に null） |
+| 同上（R-18 作品） | **HTTP 404**・`error:true`・`body:[]`。作品は実在するので `not_found` に写像してはならない |
+| `GET /ajax/illust/{id}`（R-18） | HTTP 200・`error:false`・**`xRestrict:1`**・`aiType:2` |
+| `sl`（sanity level） | **全年齢作品でも 6**。センシティブ判定には使えない |
+| phixiv（R-18 作品） | **og:image タグが無い**。R-18 画像の代替供給源にならない |
 | `GET /ajax/novel/{id}` | 無認証で `content`（本文全文）・`coverUrl`・`xRestrict`・`tags` を返す |
 | `GET /ajax/user/{id}?full=1` | 無認証で `name`/`imageBig`/`comment`/`webpage`/`social` を返す |
 | `GET /ajax/illust/1`（存在しない） | HTTP 404 |
@@ -253,9 +258,9 @@ v1 の主要3種別（作品・小説・ユーザー）が**無認証の公式 A
 
 | # | 事項 | 判断のタイミング |
 |---|---|---|
-| Q-1 | 無認証で R-18 作品を叩いたときの応答形（`age_restricted` を `unavailable` と区別できるか） | Plan 0005 のスパイク。結果を [ADR 0007](adr/0007-pixiv-session-optional.md) の Context に反映する |
-| Q-3 | `PIXIV_PHPSESSID` を実際に供給するか（アカウント停止リスクの受容） | Q-1 の結果を見てから |
-| Q-5 | `sl`（sanity level）の値域と「センシティブ」の閾値（`sl >= 4` の根拠） | Plan 0005 のスパイクで実測する。現在の閾値は未検証の仮置き |
+| ~~Q-1~~ | ~~無認証で R-18 を叩いたときの応答形~~ → **2026-08-10 に解消**。200 が返り `xRestrict` が取れる。[ADR 0007](adr/0007-pixiv-session-optional.md) は Accepted に確定 |
+| Q-3 | `PIXIV_PHPSESSID` を実際に供給するか（アカウント停止リスクの受容） | **未決**。供給しなくても安全性は損なわれない。年齢制限チャンネルで R-18 の画像を出したい場合のみ必要 |
+| ~~Q-5~~ | ~~`sl` の値域と「センシティブ」の閾値~~ → **2026-08-10 に解消（否定的結論）**。全年齢作品でも `sl: 6` が返るため**判定に使えない**。v1 では `sensitive` を常に false とする（[ADR 0006](adr/0006-age-restricted-content.md)） |
 | Q-6 | 画像プロキシを自前ホストに切り替える判断基準（公開 phixiv の障害率） | 運用開始後、`pixiv_media_total{proxy,result}` を見て判断 |
 
 ### 解消済み

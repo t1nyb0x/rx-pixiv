@@ -2,9 +2,7 @@
 
 ## 実装状況: 未着手
 
-owner_feedback: 待ち
-feedback_ask: R-18 スパイクの結果を見て、ADR 0007（pixiv 認証）を Accepted / Rejected のどちらに倒すか
-feedback_since: 2026-08-10
+owner_feedback: 済
 
 edge: derived-from 0001
 edge: blocked-by 0003
@@ -32,7 +30,31 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 
 ## 変更内容（項目・フェーズ）
 
-### フェーズ0: R-18 応答形のスパイク（**最初に行う**）
+### フェーズ0: R-18 応答形のスパイク ✅ **完了（2026-08-10）**
+
+オーナーから受領した R-18 作品 ID で実測した。**結果は当初の想定より良かった。**
+
+| 検証 | 全年齢 | R-18 |
+|---|---|---|
+| `/ajax/illust/{id}` | 200・`xRestrict:0` | **200・`xRestrict:1`**・`aiType:2` |
+| 同 `body.urls` | 5キーとも **null** | 5キーとも **null** |
+| `/ajax/illust/{id}/pages` | 200・URL 全て非 null | **404**・`error:true`・`body:[]` |
+| `sl` | **6** | **6** |
+| phixiv `/artworks/{id}` | 稼働 | **og:image 無し** |
+
+**実装に直結する3つの帰結:**
+
+1. **年齢区分は無認証で `authoritative` に取れる。** `auth_required` からの推論は予備に降格。
+   [ADR 0007](../../../docs/adr/0007-pixiv-session-optional.md) は **Accepted** で確定
+2. **`body.urls` は常に null。** 画像 URL は `/pages` からしか取れないので、
+   **1ページ作品でも必ず `/pages` を呼ぶ**
+3. **`/pages` の 404 を `not_found` に写像してはならない。**
+   R-18 では作品が実在するのに `/pages` だけ 404 になる。
+   誤ると実在作品に「見つかりません」と誤報する
+   （[ADR 0003 の 404 の取り扱い](../../../docs/adr/0003-source-fallback-chain.md)）
+4. **`sl` は判定に使えない**（全年齢でも 6）。要件 Q-5 は否定的結論で解消
+
+#### 実施済みの調査項目（記録）
 
 - **対象**: 調査のみ。成果物は [ADR 0007](../../../docs/adr/0007-pixiv-session-optional.md) の Context への追記
 - 無認証で R-18 作品の `/ajax/illust/{id}` を叩き、以下を記録する:
@@ -44,7 +66,7 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 - pixiv のレート制限の実閾値（何 req/min で 429 が返るか）
 - **`sl`（sanity level）の値域と「センシティブ」の閾値**。
   現在の `sl >= 4` は**未検証の仮置き**である（要件 Q-5）
-- 結果を ADR 0007 の「決定ログ」に記録し、Status を Accepted / Rejected に確定する
+- ~~結果を ADR 0007 の決定ログに記録し Status を確定~~ → **完了**
 
 ### 項目1: スキーマと写像
 
@@ -57,10 +79,14 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 
 - **対象**: `src/adapters/pixiv/AjaxPixivSource.ts`、`BasePixivSource.ts`
 - `/ajax/illust/{id}` + `/ajax/illust/{id}/pages`、`/ajax/novel/{id}`、フェーズ0で確定した小説シリーズ endpoint、`/ajax/user/{id}?full=1`
-- `xRestrict`（0/1/2）→ `RatingLevel`、`sl` → `sensitive`、`aiType` → `ai`。
-  `confidence: "authoritative"`
-- **部分成功を捨てない**: `/pages` が失敗しても1ページ目だけで返し `pagesTruncated: true`
-- 404 → `not_found`。年齢制限で弾かれた応答 → `auth_required`（フェーズ0の結果に従う）
+- `xRestrict`（0/1/2）→ `RatingLevel`、`aiType` → `ai`、`confidence: "authoritative"`。
+  **`sl` は使わない**（全年齢でも 6 のため）。`sensitive` は v1 では常に false
+- **1ページ作品でも必ず `/pages` を呼ぶ**（`body.urls` が常に null のため）
+- **部分成功を捨てない**: `/pages` が失敗したら**画像ゼロ枚**のメタデータのみで返し
+  `pagesTruncated: true` を立てる
+- **404 の写像をエンドポイント別に分ける**:
+  `/ajax/illust/{id}` の 404 → `not_found`（連鎖打ち切り）、
+  **`/pages` の 404 → `not_found` にしない**（画像ゼロ枚で続行）
 
 ### 項目3: phixiv ソース（二次）
 
@@ -68,6 +94,7 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 - `PHIXIV_BASE_URL`（既定 `https://phixiv.net`）を叩く。
   **`/api/info` は廃止済みのため使わない**。OGP 形の取得として実装する
 - `R-18` タグの有無から `confidence: "inferred"` の年齢区分を導く
+- **R-18 作品には og:image が無い**（実測済み）。R-18 画像の代替供給源にはならない
 - **PHPSESSID を送らない**
 
 ### 項目4: OGP スクレイプ（三次）
@@ -121,18 +148,22 @@ Plan 0006 の NSFW ゲートの縮退経路の記述に影響する。
 
 ## 要オーナー確認
 
-- **フェーズ0 の結果を見て、ADR 0007（pixiv 認証）を Accepted / Rejected のどちらに倒すか**
-- 認証を実装する場合、`PIXIV_PHPSESSID` を実際に供給するか（アカウント停止リスクの受容）
+- ~~フェーズ0 の結果を見て ADR 0007 をどちらに倒すか~~ → **Accepted で確定**
+- `PIXIV_PHPSESSID` を実際に供給するか（アカウント停止リスクの受容）。
+  **供給しなくても安全性は損なわれない**。年齢制限チャンネルで R-18 の**画像**を
+  出したい場合のみ必要（要件 Q-3）
 
 ## 完了条件
 
-- [ ] フェーズ0 のスパイク結果が ADR 0007 の Context と決定ログに記録され、Status が確定している
+- [x] フェーズ0 のスパイク結果が ADR 0007 の Context と決定ログに記録され、Status が確定している
 - [ ] fixture から illust / manga / novel / novel series / user が正しく `PixivWork` へ写像される
 - [ ] `not_found` で連鎖が打ち切られ、他のエラーでは続行することがテストで確認できる
 - [ ] `auth_required` が `ratingHint = r18/inferred` を立て、**後段で緩められない**
-- [ ] `/pages` の失敗時に1ページ目だけで返り `pagesTruncated: true` になる
+- [ ] `/pages` の失敗時に**画像ゼロ枚**のメタデータのみで返り `pagesTruncated: true` になる
+- [ ] **`/pages` の 404 が `not_found` に写像されない**（R-18 作品で「見つかりません」と誤報しない）
+- [ ] 1ページ作品でも `/pages` を呼んでいる（`body.urls` に依存していない）
 - [ ] `pixiv.me` のリダイレクトが解決され、再判定される
-- [ ] `sl` の値域を実測し、「センシティブ」の閾値を要件 Q-5 に反映した
+- [x] `sl` の値域を実測し、要件 Q-5 に反映した（**判定に使えないという否定的結論**）
 - [ ] 総予算超過時に次の経路を起動しない
 - [ ] `vi.mock("undici")` を使っていない（ポートに対してモックしている）
 
