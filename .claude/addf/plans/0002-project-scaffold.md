@@ -42,7 +42,10 @@ edge: derived-from 0001
 
 - **対象**: `src/config/env.ts`、`src/config/constants.ts`、`.env.example`
 - zod スキーマで環境変数を一括検証。不備は**集約した読めるエラー**を出して exit 1
-- `constants.ts` には Discord 側の硬い上限（embed 10・gallery item 10・添付 10）を置く。
+- 必須: `DISCORD_TOKEN`、`OWNER_USER_ID`（[ADR 0015](../../../docs/adr/0015-admin-commands-and-abuse-control.md)）
+- 主要な任意: `PXIMG_PROXY_BASE_URL`（既定 `https://phixiv.net/i`）、`REDIS_URL`、
+  `REDIS_DOWN_FALLBACK`（既定 `deny`）、`SOURCE_CHAIN`、`RENDERER`
+- `constants.ts` には Discord 側の硬い上限（embed 10・gallery item 10）を置く。
   可変つまみは env 側に置き、両者を混ぜない
 
 ### 項目3: ロガー
@@ -72,7 +75,9 @@ edge: derived-from 0001
 - **対象**: `Dockerfile`、`docker-compose.yml`、`.dockerignore`、`.github/workflows/`
 - Dockerfile は 2-stage `node:24-alpine`（digest ピン）、非 root、
   `HEALTHCHECK` は `/healthz`、`NODE_OPTIONS=--enable-source-maps`
-- docker-compose は **bot のみ**（redis サービスを置かない — [ADR 0008](../../../docs/adr/0008-in-memory-cache.md)）
+- docker-compose は bot + **redis**（`redis:8-alpine`、`--appendonly yes`）。
+  [ADR 0008](../../../docs/adr/0008-in-memory-cache.md) は Redis 不採用としていたが、
+  [ADR 0016](../../../docs/adr/0016-redis-for-persistent-state.md) で置き換えられた
 - ワークフロー4本を rx-instagram から移植: `ci` / `push-image`（GHCR）/
   `release`（release-please）/ `deploy`（HMAC 署名 webhook）
 - `ci` は Node 24、`npm ci` → `oxlint` → `oxfmt --check` → `tsc --noEmit` →

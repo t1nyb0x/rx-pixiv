@@ -30,7 +30,7 @@
         ┌─────────────────────────────────────────────┐
         │                  Discord                     │
         └──────────┬───────────────────────▲───────────┘
-                   │ messageCreate          │ reply（添付ファイル同梱）
+                   │ messageCreate          │ reply（URL 埋め込み）
                    ▼                        │
         ┌──────────────────────────────────────────────┐
         │            rx-pixiv Bot (Node.js)             │
@@ -42,18 +42,30 @@
         │        ▲                                      │
         │        └──── index.ts が全層を DI で組み立て   │
         └──────┬────────────────┬──────────────┬────────┘
-               │ ①メタデータ     │ ②画像バイト   │ ③ヘルス/メトリクス
+               │ ①メタデータ     │ ②永続状態     │ ③ヘルス/メトリクス
                ▼                ▼              ▼
      ┌──────────────────┐  ┌────────────┐  ┌──────────┐
-     │ www.pixiv.net    │  │i.pximg.net │  │ :9090    │
-     │  /ajax/*         │  │ (Referer   │  │ (非公開) │
-     │ phixiv.net       │  │  必須)      │  └──────────┘
+     │ www.pixiv.net    │  │  Redis     │  │ :9090    │
+     │  /ajax/*         │  │ 禁止/拒否   │  │ (非公開) │
+     │ phixiv.net       │  │ 返信/CD     │  └──────────┘
      │ 作品ページ OGP    │  └────────────┘
      └──────────────────┘
+
+        画像は Bot を経由しない:
+        ┌──────────┐  埋め込まれた URL   ┌──────────────┐  Referer 付与  ┌────────────┐
+        │ 閲覧者    │◄── Discord CDN ───►│ phixiv.net/i │──────────────►│i.pximg.net │
+        └──────────┘                     └──────────────┘                └────────────┘
 ```
 
 **外部に公開する HTTP 面は持たない。** ヘルスポートは Docker ネットワーク内に留める。
-永続ストアも持たない（[ADR 0008](adr/0008-in-memory-cache.md)）。
+
+**画像バイトは Bot を通らない**（[ADR 0014](adr/0014-media-delivery-via-proxy-url.md)）。
+Bot が行うのは `i.pximg.net` の URL を画像プロキシの URL へ書き換えて埋め込むことだけで、
+実際に画像を取得するのは Discord のメディアプロキシと閲覧者である。
+
+永続ストアは Redis を持つが、**「消えては困る状態」に限る**
+（[ADR 0016](adr/0016-redis-for-persistent-state.md)）。作品メタデータのキャッシュは
+プロセス内 LRU のままで、Redis はホットパスに入らない。
 
 ---
 
@@ -97,12 +109,14 @@ src/
 │   │   ├── IPixivSource.ts
 │   │   ├── IHttpClient.ts
 │   │   ├── IMediaFetcher.ts
+│   │   ├── IBanRepository.ts
+│   │   ├── IBlockRepository.ts
 │   │   └── IWorkCache.ts
 │   └── services/
 │       ├── UrlDetector.ts            # 純粋: string -> PixivRef[]
 │       ├── WorkResolver.ts           # キャッシュ -> 経路連鎖 -> PixivWork
 │       ├── NsfwPolicy.ts             # 年齢区分 × チャンネル -> Decision
-│       ├── MediaSelector.ts          # ページ・サイズ変種・バイト予算の選択
+│       ├── MediaSelector.ts          # ページ・サイズ変種の選択
 │       └── MessageComposer.ts        # PixivWork + Decision -> RenderPlan
 ├── adapters/
 │   ├── pixiv/
@@ -112,26 +126,33 @@ src/
 │   │   ├── OgpScrapeSource.ts        # 三次
 │   │   ├── PixivSourceChain.ts       # フォールバック統括
 │   │   ├── shortlink.ts              # pixiv.me のリダイレクト解決
+│   │   ├── ImageUrlRewriter.ts       # i.pximg.net -> ${PXIMG_PROXY_BASE_URL}
 │   │   ├── schemas/                  # ajax レスポンスの zod スキーマ
 │   │   └── mappers/                  # 各ソース DTO -> PixivWork
 │   └── discord/
 │       ├── MessageHandler.ts         # messageCreate の入口
+│       ├── OwnerCommandHandler.ts    # !owner/... の DM コマンド
 │       ├── ComponentsV2Renderer.ts   # RenderPlan -> Components v2
 │       ├── EmbedRenderer.ts          # RenderPlan -> v1 Embed（退避経路）
 │       ├── channelRating.ts          # isAgeRestricted(channel)
-│       ├── attachmentLimit.ts        # premiumTier -> バイト予算
 │       └── replyTracker.ts           # 元メッセージ -> Bot 返信 ID
 ├── infrastructure/
 │   ├── http/
 │   │   ├── HttpClient.ts             # undici Agent・UA・タイムアウト・1回リトライ
-│   │   ├── PximgFetcher.ts           # Referer 付き取得・ストリーミングバイト上限
 │   │   ├── RateLimiter.ts            # ホスト別トークンバケット
 │   │   ├── CircuitBreaker.ts
-│   │   └── HealthServer.ts           # Hono: /healthz /readyz /health /metrics
-│   ├── cache/{LruTtlCache,WorkCache,AttachmentUrlCache}.ts
+│   │   ├── HealthServer.ts           # Hono: /healthz /readyz /health /metrics
+│   │   └── PximgFetcher.ts           # 第3段フォールバック時のみ使う（既定は無効）
+│   ├── cache/{LruTtlCache,WorkCache}.ts
+│   ├── redis/
+│   │   ├── client.ts                 # 接続・再接続・縮退
+│   │   ├── RedisBanRepository.ts     # IBanRepository の実装
+│   │   ├── RedisBlockRepository.ts   # IBlockRepository の実装
+│   │   ├── RedisReplyRepository.ts
+│   │   └── RedisCooldownStore.ts
 │   ├── session/PixivSession.ts       # 任意の PHPSESSID 保持＋有効性プローブ
 │   └── metrics/Counters.ts
-└── utils/{logger,concurrency,bytes,html}.ts
+└── utils/{logger,concurrency,html}.ts
 ```
 
 ### 構造上の要点: `RenderPlan`
@@ -154,10 +175,18 @@ src/
 messageCreate
    │
    ├─ Bot 自身・他 Bot なら終了
+   ├─ OwnerCommandHandler（DM の !owner/...）── 処理したら終了
+   ├─ 禁止判定（利用者・サーバー）──────────── 該当なら終了
+   ├─ 許可チャンネル判定 ───────────────────── 対象外なら終了
+   ├─ クールダウン（利用者10秒 / チャンネル5秒）── 超過なら無反応で終了
+   │     ※ ここまでを URL 検出より前に置く。濫用時に本文解析すら行わせない
+   │
    ├─ traceId 発番、チャンネル送信可否の確認
    │
    ├─ UrlDetector.detect(content) ──► PixivRef[]（重複排除・最大3件）
    │     └ コードブロック内 / <> 抑制内 / 既存スポイラー内は除外
+   │
+   ├─ 展開拒否リスト照合 ── 該当分は取得せずスキップ
    │
    ├─ 同時実行2本まで、各 PixivRef について:
    │     │
@@ -174,12 +203,12 @@ messageCreate
    │     ├─ skip なら何も投稿せず終了
    │     ├─ link_only なら定型文＋URL のみ（画像・タイトル・タグを出さない）
    │     │
-   │     ├─ MediaSelector.select(work, byteBudget)  … 枚数・サイズ変種の決定
-   │     ├─ PximgFetcher.fetch(urls)                … Referer 付き取得
+   │     ├─ MediaSelector.select(work)              … 枚数・サイズ変種の決定
+   │     ├─ ImageUrlRewriter.rewrite(urls)          … i.pximg.net -> プロキシ URL
    │     └─ MessageComposer.compose() ──► RenderPlan
    │
    ├─ Renderer が RenderPlan を Discord ペイロードへ変換
-   ├─ 送信前アサート（添付10・gallery item 10・embed 10 を超えない）
+   ├─ 送信前アサート（gallery item 10・embed 10 を超えない）
    ├─ message.reply(...)  → replyTracker に記録
    └─ 1件でも展開したら message.suppressEmbeds(true)（失敗は無視）
 
@@ -316,56 +345,78 @@ signal = AbortSignal.any([総予算, AbortSignal.timeout(経路別)])
 
 ## 8. メディア配信
 
-**Bot が `Referer` 付きで取得し、Discord の添付として再アップロードする。**
-Components v2 の `MediaGalleryItem` から `attachment://<name>` で参照する。
+**`i.pximg.net` の URL を画像プロキシの URL へホスト書き換えし、
+`MediaGalleryItem` に直接埋め込む。Bot はバイトを運ばない。**
+（[ADR 0014](adr/0014-media-delivery-via-proxy-url.md)）
 
-理由と却下案は [ADR 0005](adr/0005-media-delivery.md) に記す。要点だけ:
+```
+ajax が返す:  https://i.pximg.net/img-master/img/.../100412238_p0_master1200.jpg
+                              ↓ ホスト書き換えのみ
+埋め込む:     https://phixiv.net/i/img-master/img/.../100412238_p0_master1200.jpg
+```
 
-- 添付方式だけが **item 単位のスポイラー**を実現できる。プロキシ URL を `||...||` で囲むと
-  展開そのものが止まり、「ぼかした画像」ではなく「ぼかしたリンク」になる
-- 公開プロキシへの依存は、アーカイブ済みプロジェクトに恒常機能の中核を預けることになる
-- 自前の公開画像プロキシは、公開ホスト名・TLS・署名付き URL・悪用対策を必要とし、
-  それだけやってもスポイラーはできない。**厳密に多い労力で厳密に少ない機能**
+`i.pximg.net` をそのまま埋め込めないのは `Referer` 制約のためだが、
+**ホスト名を替えるだけで解決する**。R-18 / センシティブ時は
+`MediaGalleryItem.spoiler = true` を item 単位で立てる —— これは**外部 URL でも効く**。
 
-### サイズ変種のラダー
+### プロキシを単一障害点にしない
 
-1. `regular`（img-master 1200px、概ね 150KB〜1.2MB）を第一候補
-2. HEAD で `content-length` を確認し、予算超過なら `small`（540px）→ `thumb`
-3. **`original` は v1 では取得しない**
-4. **上限はストリーミング中に強制する**。`content-length` は欠落も詐称もありうるので、
-   読み出しバイト数を数えて予算を越えた時点で中断する。実際に守ってくれるのはこちら
+| 段 | 手段 | 切り替え |
+|---|---|---|
+| 1 | 公開 phixiv（`https://phixiv.net/i`） | 既定 |
+| 2 | **自前ホストの phixiv** | `PXIMG_PROXY_BASE_URL` を差し替え。Dockerfile 同梱なので compose に1サービス足すだけ |
+| 3 | 添付方式（旧 ADR 0005 の方式） | `MEDIA_FALLBACK=attachment`。既定は無効 |
 
-### Discord の上限との突き合わせ
+第3段のために `IMediaFetcher`（`{ kind: "bytes" } | { kind: "url" }`）を残す。
 
-- 添付総バイト予算 = ブーストティア由来の上限 × 0.9（10%のヘッドルーム）。
-  ファイル単位ではなく**メッセージ全体**で配分する
-- 送信前に硬いアサート: 添付 ≤10、MediaGallery item ≤10、Embed ≤10。
+### 枚数とサイズ
+
+- `regular`（img-master 1200px）を使う。**`original` は使わない**
+- 既定4枚・上限10枚（`MediaGallery` の item 上限）。
+  「全 200 ページ中 4 ページを表示」と明記してリンクを添える
+- R-18 でも枚数は減らさない（item 単位でぼかされるため）
+- **部分失敗は捨てない**。一部の URL しか組み立てられなくても、取れた分を表示する
+- 送信前に硬いアサート: MediaGallery item ≤10、Embed ≤10。
   rx-instagram の既知バグ（embed 数超過で未捕捉例外）はここで塞ぐ
-- 200ページのマンガは既定4枚。「全 200 ページ中 4 ページを表示」と明記してリンクを添える。
-  R-18 でも枚数は減らさない（item 単位でぼかされるため）
 
 ---
 
-## 9. キャッシュ
+## 9. 状態の置き場所
 
-インメモリ TTL + LRU のみ。Redis も SQLite も持たない（[ADR 0008](adr/0008-in-memory-cache.md)）。
+**「消えては困る状態」だけ Redis、それ以外はプロセス内**
+（[ADR 0016](adr/0016-redis-for-persistent-state.md)）。
+
+### プロセス内 TTL + LRU（消えてよい）
 
 | キャッシュ | キー | TTL | 上限 |
 |---|---|---|---|
 | 作品メタ（illust/manga/novel） | `work:illust:{id}` | 6h | 2000 |
 | ユーザープロフィール | `work:user:{id}` | 1h | 500 |
 | ネガティブ（`not_found`） | `neg:{kind}:{id}` | 10min | 1000 |
-| 添付 CDN URL | `att:{id}:{page}:{variant}` | min(6h, CDN の `ex` 失効時刻) | 2000 |
-| 返信マップ | `reply:{originMsgId}` | 1h | 2000 |
+| サーキットブレーカ状態 | — | — | — |
 
-- **画像バイトをディスクにキャッシュしない**。Discord CDN が実質のキャッシュであり、
-  再貼り付けは添付 URL キャッシュで拾える。計測前の最適化はしない
-- Discord CDN の URL は `?ex=&is=&hm=` で署名され失効する。TTL は `ex` から導出する。
-  脆いと分かったら添付 URL キャッシュ自体を落とす（最適化であって要件ではない）
-- `IWorkCache` は `core/ports` に置き、**初日から非同期インターフェース**にする。
-  2インスタンス目が必要になった日に `RedisWorkCache` を差し込めるようにするため
+高頻度・大量であり、消えても再取得すればよい。**Redis をホットパスに入れない。**
+
+### Redis（消えては困る）
+
+| キー | 型 / TTL |
+|---|---|
+| `app:ban:list` / `app:ban:user:{id}` / `app:ban:guild:{id}` | Set + JSON ／無期限 |
+| `app:block:list` / `app:block:artwork:{id}` / `app:block:user:{id}` | Set + JSON ／無期限 |
+| `app:reply:{originMsgId}` | JSON ／24h |
+| `app:cooldown:user:{id}` / `app:cooldown:channel:{id}` | 文字列 ／秒単位 |
+
+- 禁止と展開拒否は**起動時に全件プリロード**し、変更時に更新する。
+  毎メッセージで Redis に往復しない
+- `appendonly yes` で永続化する
+- **Redis を読めないときはフェイルクローズ**（`REDIS_DOWN_FALLBACK=deny` が既定）。
+  ban できていない状態で動き続けるより止まるほうがよい。
+  クールダウンだけは読めなくても通す（安全側の判断に影響しないため）
+- `IBanRepository` / `IBlockRepository` / `IWorkCache` は `core/ports/` に置き、
+  実装を差し替えられるようにする（ファイル方式へ戻す余地を残す）
 
 ---
+
 
 ## 10. 設定
 
@@ -389,8 +440,14 @@ Components v2 の `MediaGalleryItem` から `attachment://<name>` で参照す�
 | `ALLOW_NSFW_IN_DM` | `false` | |
 | `PIXIV_PHPSESSID` | 未設定 | 任意・秘匿・ログでマスク |
 | `FETCH_TOTAL_BUDGET_MS` / `SOURCE_TIMEOUT_MS` | `8000` / `3000` | |
-| `PIXIV_RPS` / `PXIMG_CONCURRENCY` | `1` / `4` | |
+| `PIXIV_RPS` | `1` | |
 | `HEALTH_PORT` | `9090` | 公開しない |
+| **`PXIMG_PROXY_BASE_URL`** | `https://phixiv.net/i` | **画像プロキシの向き先。自前ホストへ逃げる口**（[ADR 0014](adr/0014-media-delivery-via-proxy-url.md)） |
+| `MEDIA_FALLBACK` | `none` | `attachment` で旧・添付方式を第3段として有効化 |
+| **`OWNER_USER_ID`** | （必須） | `!owner/...` コマンドの実行者（[ADR 0015](adr/0015-admin-commands-and-abuse-control.md)） |
+| **`REDIS_URL`** | `redis://localhost:6379` | （[ADR 0016](adr/0016-redis-for-persistent-state.md)） |
+| **`REDIS_DOWN_FALLBACK`** | **`deny`** | Redis 不通時にフェイルクローズ。`allow` で緩められる |
+| `USER_COOLDOWN_MS` / `CHANNEL_COOLDOWN_MS` | `10000` / `5000` | 超過時は無反応 |
 
 ---
 
@@ -449,9 +506,11 @@ ffmpeg を必要とする変換は、本体イメージではなく別コンテ�
 | 外部 API | orval 生成（OpenAPI 有） | cheerio スクレイプ | **手書き zod**（OpenAPI 不在） |
 | HTTP | orval fetch mutator | 素の `fetch` | **undici 直**（Referer/Cookie/ストリーミング制御が要る） |
 | ロガー | winston + ファイルローテート | `console.log` | **pino / stdout** |
-| 永続化 | Redis | 無し | **インメモリのみ** |
+| 永続化 | Redis（全部） | 無し | **Redis は永続状態のみ・キャッシュはプロセス内** |
 | エラー | `undefined` + `instanceof` 判定 | センチネル文字列 | **判別可能 `Result`** |
 | 元メッセージ | `suppressEmbeds` | `delete()` | **`suppressEmbeds`** |
+| メディア | プロキシ API の URL を埋め込み | `og:image` の URL を埋め込み | **画像プロキシへホスト書き換えして埋め込み** |
+| 管理面 | DM `!owner/...` | 無し | **DM `!owner/...`（展開拒否リスト付き）** |
 | 表示ロジック | ビルダに混在 | ビルダに混在 | **`RenderPlan` に分離** |
 
 rx-twitter から**持ってこないもの**: `packages/*` ワークスペース、`publish-shared.yml`、

@@ -33,8 +33,9 @@ Plan 0007 までで Bot は動くが、
 - 出すもの:
   - `pixiv_fetch_total{source,result}` — 「phixiv は死んでいるか」「レート制限を食っているか」
   - `pixiv_fallback_depth_total{depth}` — 常時2段目以降なら一次経路の破損
-  - `pixiv_render_total{decision}` — **`skip` の急増は年齢判定の故障を意味する**
-  - `pixiv_bytes_uploaded_total`
+  - `pixiv_render_total{decision}` — **`skip` の急増は年齢判定の故障を意味する**。
+    **R-18 判定の急減も同様にアラート対象**（写像が壊れた兆候。[ADR 0006 既知の限界2](../../../docs/adr/0006-age-restricted-content.md)）
+  - `pixiv_media_total{proxy,result}` — 画像プロキシの健全性（[ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md)）
   - `pixiv_cache_hits_total` / `pixiv_cache_misses_total`
   - `pixiv_circuit_state{source}`
 
@@ -72,8 +73,11 @@ Plan 0007 までで Bot は動くが、
 
 - **対象**: `README.md`
 - 対応 URL 一覧、必要な Discord 権限、セットアップ手順、環境変数表
-- **[ADR 0005](../../../docs/adr/0005-media-delivery.md) の権利上の姿勢を明記する**
-  （`regular` サイズのみ・4枚上限・必ず作品リンクを併記・削除要請に応じる）
+- **[ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) の姿勢を明記する**
+  （画像プロキシの URL を埋め込むだけでバイトを再配信しない・`regular` サイズのみ・
+  4枚上限・必ず作品リンクを併記・削除要請には `!owner/block` で応じる）
+- **管理コマンド**（[ADR 0015](../../../docs/adr/0015-admin-commands-and-abuse-control.md)）の一覧と、
+  **`Manage Messages` が実質必須である理由**（[ADR 0006 既知の限界1](../../../docs/adr/0006-age-restricted-content.md)）を書く
 - [ADR 0007](../../../docs/adr/0007-pixiv-session-optional.md) を実装した場合、
   **PHPSESSID の規約リスクと捨てアカウント推奨を明記する**
 

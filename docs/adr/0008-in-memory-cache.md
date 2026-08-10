@@ -1,8 +1,15 @@
 # ADR 0008: キャッシュはインメモリ TTL+LRU とし Redis を導入しない
 
-- Status: Accepted
+- Status: **Superseded by [ADR 0016](0016-redis-for-persistent-state.md)**
 - Date: 2026-08-10
 - Issue: -
+
+> **この ADR は 2026-08-10 に [ADR 0016](0016-redis-for-persistent-state.md) へ置き換えられた。**
+> [ADR 0015](0015-admin-commands-and-abuse-control.md)（管理コマンド）により、
+> 禁止リストと展開拒否リストという**「消えては困る状態」**が v1 に発生し、
+> 本 ADR の前提（保持したいのは消えてよいキャッシュだけ）が成立しなくなった。
+> ただし「**作品メタデータのキャッシュはプロセス内 LRU で足りる**」という判断は
+> ADR 0016 でも維持されている。以下は記録として残す。
 
 ## Context
 

@@ -14,7 +14,7 @@ edge: blocked-by external
 
 - [Plan 0001: 要件定義・アーキテクチャ設計・ADR 整備](0001-requirements-and-adr.md) — 分離元
 - [Plan 0003: ドメインモデルと URL 検出](0003-domain-and-url-detection.md) — `IMediaFetcher` ポートを定義した Plan
-- [Plan 0006: NSFW ゲートとメディア取得](0006-nsfw-gate-and-media.md) — 具象実装 `PximgFetcher` を追加した Plan
+- [Plan 0006: NSFW ゲートとメディア URL 組み立て](0006-nsfw-gate-and-media.md) — 具象実装（`ImageUrlRewriter` と、既定無効の `PximgFetcher`）を追加した Plan
 
 ## 分かっていること
 
@@ -31,9 +31,8 @@ edge: blocked-by external
 
 - 変換をどこで行うか — 別コンテナ（`rx-pixiv-media`）か、外部サービスか
 - 別コンテナにする場合、Bot との通信は HTTP か、共有ボリューム経由か
-- 変換結果をキャッシュするか。するならどこに（[ADR 0008](../../../docs/adr/0008-in-memory-cache.md)
-  は「画像バイトをディスクにキャッシュしない」と決めているが、
-  変換コストが高い ugoira は例外扱いすべきか）
+- 変換結果をキャッシュするか。するならどこに（[ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) により
+  Bot は画像バイトを扱わなくなったが、変換が必要な ugoira は例外になる。どこに置くか）
 - 変換の同時実行数と、CPU 予算の上限
 - 出力形式（MP4 / WebM / GIF）と、Discord 上での再生互換性
 - 年齢ゲートとの関係 — 動画に対して item 単位スポイラーが効くか
@@ -43,6 +42,5 @@ edge: blocked-by external
 
 - **うごイラ URL の投稿頻度がメトリクスで有意になったとき**
   （Plan 0008 の `pixiv_render_total` に ugoira 種別のラベルを足して観測する）
-- または、[ADR 0005](../../../docs/adr/0005-media-delivery.md) の再検討により
-  どのみち別メディアサービスを立てることになったとき
-  （その場合、画像配信と ugoira 変換を同じサービスに載せられる）
+- または、自前ホストの画像プロキシ（[ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) の第2段）へ
+  移行することになったとき（その場合、画像プロキシと ugoira 変換を同じサービスに載せられる）

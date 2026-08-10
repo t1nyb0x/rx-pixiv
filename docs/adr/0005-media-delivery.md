@@ -1,8 +1,14 @@
 # ADR 0005: 画像は Bot が取得して Discord 添付として再配信する
 
-- Status: Accepted
+- Status: **Superseded by [ADR 0014](0014-media-delivery-via-proxy-url.md)**
 - Date: 2026-08-10
 - Issue: -
+
+> **この ADR は 2026-08-10 に [ADR 0014](0014-media-delivery-via-proxy-url.md) へ置き換えられた。**
+> 本 ADR の中核の根拠「添付方式だけが item 単位のスポイラーを実現できる」は**誤りだった**。
+> それは v1 Embed に限った話であり、[ADR 0009](0009-components-v2-renderer.md) で既定に決めた
+> **Components V2 の `MediaGalleryItem` は外部 URL に対しても `spoiler` が効く**。
+> 現行の決定は ADR 0014 を参照すること。以下は記録として残す。
 
 ## Context
 

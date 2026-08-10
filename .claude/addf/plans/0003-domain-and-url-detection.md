@@ -46,8 +46,9 @@ URL 文字列から正規化された参照を取り出す純粋関数と、
 
 ### 項目3: ポート定義
 
-- **対象**: `src/core/ports/{IPixivSource,IHttpClient,IMediaFetcher,IWorkCache}.ts`
-- `IWorkCache` は**初日から非同期**インターフェースにする（[ADR 0008](../../../docs/adr/0008-in-memory-cache.md)）
+- **対象**: `src/core/ports/{IPixivSource,IHttpClient,IMediaFetcher,IWorkCache,IBanRepository,IBlockRepository}.ts`
+- `IWorkCache` / `IBanRepository` / `IBlockRepository` は**非同期**インターフェースにする
+  （[ADR 0016](../../../docs/adr/0016-redis-for-persistent-state.md)。実装差し替えの余地を残す）
 - `IMediaFetcher` は `{ kind: "bytes" } | { kind: "url" }` を返す（[ADR 0012](../../../docs/adr/0012-ugoira-out-of-scope.md)）
 
 ### 項目4: URL 検出

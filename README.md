@@ -16,7 +16,8 @@ pixiv の URL を Discord に貼っても、プレビューにはタイトルと
 画像 CDN `i.pximg.net` が `Referer: https://www.pixiv.net/` を要求し、
 Discord の埋め込みプロキシがそのヘッダを付けられないためです。
 
-rx-pixiv は Bot 自身が `Referer` を付けて画像を取得し、Discord の添付として再配信します。
+rx-pixiv は画像 URL のホスト名を画像プロキシへ書き換えて埋め込みます。
+**Bot 自身は画像バイトを一切運びません**（[ADR 0014](docs/adr/0014-media-delivery-via-proxy-url.md)）。
 
 ---
 
@@ -58,19 +59,24 @@ rx-pixiv は Bot 自身が `Referer` を付けて画像を取得し、Discord �
 
 ## 画像の扱いについて
 
-本 Bot は pixiv の画像を取得し、Discord の添付として再アップロードします
-（[ADR 0005](docs/adr/0005-media-delivery.md)）。
-これは pixiv の `Referer` 制約を回避する唯一の実用的な手段ですが、
-「ホットリンク」ではなく「再配信」にあたります。
+`i.pximg.net` は `Referer: https://www.pixiv.net/` を要求するため、URL をそのまま
+埋め込んでも Discord は描画できません。本 Bot は **URL のホスト名を画像プロキシへ
+書き換えて埋め込むだけ**で、**画像バイトのダウンロードもアップロードも行いません**
+（[ADR 0014](docs/adr/0014-media-delivery-via-proxy-url.md)）。
 
-以下の姿勢で運用します。
+```
+pixiv が返す:  https://i.pximg.net/img-master/.../xxx_p0_master1200.jpg
+埋め込む:      https://phixiv.net/i/img-master/.../xxx_p0_master1200.jpg
+```
 
-- **原寸画像（`original`）を配信しない**。`regular`（長辺1200px）のみ
-- **1作品あたり既定4枚**まで。200ページの作品でも全ページを展開しない
-- **必ず pixiv の作品ページへのリンクを併記する**
-- 権利者からの削除要請には速やかに応じる
+つまり本 Bot は**配信者ではなくリンクを貼る側**です。作者が pixiv から作品を削除すれば、
+埋め込みも自然に見えなくなります。
 
-自身のサーバーで運用する際は、この姿勢を理解したうえでご利用ください。
+- 画像プロキシの向き先は `PXIMG_PROXY_BASE_URL` で変更できます（自前ホストも可能）
+- **原寸画像（`original`）は使いません**。`regular`（長辺1200px）のみ
+- **1作品あたり既定4枚**まで。200ページの作品でも全ページを展開しません
+- **必ず pixiv の作品ページへのリンクを併記します**
+- 権利者からの削除要請には `!owner/block` による展開拒否で応じます
 
 ---
 
@@ -81,13 +87,32 @@ rx-pixiv は Bot 自身が `Referer` を付けて画像を取得し、Discord �
 | View Channels | 必須 |
 | Send Messages | 必須 |
 | Embed Links | 必須 |
-| Attach Files | 必須 |
 | Read Message History | 必須 |
-| Manage Messages | **推奨**（pixiv 側の貧弱なプレビューを抑制するため。無くても動作します） |
+| Manage Messages | **実質必須** |
+
+> **`Manage Messages` について**: 形式上は無くても動作しますが、この権限が無いと
+> `suppressEmbeds` できず、**Discord 自身が pixiv の OGP を展開して R-18 のタイトルが
+> 通常チャンネルに出てしまいます**（[ADR 0006 既知の限界1](docs/adr/0006-age-restricted-content.md)）。
+> 年齢制限の扱いを重視するなら付与してください。
 
 Discord Developer Portal で **Message Content Intent を有効化**する必要があります。
 
 ---
+
+## 管理コマンド
+
+オーナー（`OWNER_USER_ID`）との DM でのみ動作します
+（[ADR 0015](docs/adr/0015-admin-commands-and-abuse-control.md)）。
+
+| コマンド | 役割 |
+|---|---|
+| `!owner/guilds` / `!owner/leave <guildId>` | 導入サーバーの確認と離脱 |
+| `!owner/ban <userId>` / `!owner/unban <userId>` | 利用者の禁止 |
+| `!owner/ban-guild <guildId>` / `!owner/unban-guild <guildId>` | サーバーの禁止 |
+| `!owner/block <artworkId\|user:<pixivUserId>>` / `!owner/unblock ...` | **展開拒否**（削除要請の受け皿） |
+| `!owner/list-bans` / `!owner/list-blocks` / `!owner/status` / `!owner/help` | 一覧と状態 |
+
+利用者ごと10秒・チャンネルごと5秒のクールダウンがあります（超過時は無反応）。
 
 ## ドキュメント
 
@@ -95,7 +120,7 @@ Discord Developer Portal で **Message Content Intent を有効化**する必要
 |---|---|
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | 要件定義 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | アーキテクチャ設計 |
-| [docs/adr/](docs/adr/) | 設計判断の記録（ADR 0001〜0013） |
+| [docs/adr/](docs/adr/) | 設計判断の記録（ADR 0001〜0016） |
 | [TODO.md](TODO.md) | 実装バックログ |
 
 ---

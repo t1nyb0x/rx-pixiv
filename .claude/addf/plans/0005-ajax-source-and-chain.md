@@ -19,7 +19,7 @@ edge: blocked-by 0004
 - [Plan 0001: 要件定義・アーキテクチャ設計・ADR 整備](0001-requirements-and-adr.md) — 分離元
 - [Plan 0003: ドメインモデルと URL 検出](0003-domain-and-url-detection.md) — 依存（写像先のモデル）
 - [Plan 0004: HTTP 基盤・レート制御・キャッシュ](0004-http-ratelimit-cache.md) — 依存
-- [Plan 0006: NSFW ゲートとメディア取得](0006-nsfw-gate-and-media.md) — 本 Plan の年齢ヒントを使う
+- [Plan 0006: NSFW ゲートとメディア URL 組み立て](0006-nsfw-gate-and-media.md) — 本 Plan の年齢ヒントを使う
 
 ## 目的
 
@@ -41,6 +41,8 @@ pixiv から作品メタデータを取得する。画像バイトの取得は P
 - phixiv が R-18 のメタデータ・画像を返すか
 - `/ajax/illust/{id}/pages` の多ページ応答と `master1200` の実サイズ分布
 - pixiv のレート制限の実閾値（何 req/min で 429 が返るか）
+- **`sl`（sanity level）の値域と「センシティブ」の閾値**。
+  現在の `sl >= 4` は**未検証の仮置き**である（要件 Q-5）
 - 結果を ADR 0007 の「決定ログ」に記録し、Status を Accepted / Rejected に確定する
 
 ### 項目1: スキーマと写像
@@ -126,6 +128,7 @@ Plan 0006 の NSFW ゲートの縮退経路の記述に影響する。
 - [ ] `auth_required` が `ratingHint = r18/inferred` を立て、**後段で緩められない**
 - [ ] `/pages` の失敗時に1ページ目だけで返り `pagesTruncated: true` になる
 - [ ] `pixiv.me` のリダイレクトが解決され、再判定される
+- [ ] `sl` の値域を実測し、「センシティブ」の閾値を要件 Q-5 に反映した
 - [ ] 総予算超過時に次の経路を起動しない
 - [ ] `vi.mock("undici")` を使っていない（ポートに対してモックしている）
 

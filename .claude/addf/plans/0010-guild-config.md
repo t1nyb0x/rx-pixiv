@@ -7,18 +7,22 @@ owner_feedback: 不要
 edge: derived-from 0001
 edge: blocked-by external
 
-> 出典: [ADR 0008 キャッシュはインメモリ TTL+LRU とし Redis を導入しない](../../../docs/adr/0008-in-memory-cache.md)。
-> 「共有相手が現れた日に導入すればよい」とした先送りの受け皿
+> 出典: [ADR 0016 永続が要る状態のために Redis を導入する](../../../docs/adr/0016-redis-for-persistent-state.md)。
+> 「ギルド別設定・ダッシュボード連携へ進む道が開く」とした先送りの受け皿
+> （ADR 0008 が ADR 0016 に置き換えられ、Redis は [Plan 0011](0011-admin-and-abuse-control.md) で既に入る）
 
 ## 関連 Plan
 
 - [Plan 0001: 要件定義・アーキテクチャ設計・ADR 整備](0001-requirements-and-adr.md) — 分離元
 - [Plan 0004: HTTP 基盤・レート制御・キャッシュ](0004-http-ratelimit-cache.md) — `IWorkCache` を非同期ポートとして定義した Plan
+- [Plan 0011: 管理コマンド・濫用対策・Redis 永続化](0011-admin-and-abuse-control.md) — Redis を先に導入する Plan
 
 ## 分かっていること
 
 - v1 の設定はすべて環境変数であり、ギルドごとに変えられない
-- `IWorkCache` は**初日から非同期インターフェース**として定義してあるため、
+- **Redis は [Plan 0011](0011-admin-and-abuse-control.md) で既に導入される**（禁止・展開拒否のため）。
+  本 Plan の障壁は当初想定より低い
+- `IWorkCache` は非同期インターフェースとして定義してあるため、
   `RedisWorkCache` を差し込むときにシグネチャ変更は発生しない
 - rx-twitter に前例がある。Redis を Bot ↔ Astro ダッシュボードの同期バスとして使い、
   SQLite 側を source of truth にしている。

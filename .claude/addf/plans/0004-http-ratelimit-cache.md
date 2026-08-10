@@ -8,13 +8,15 @@ edge: derived-from 0001
 edge: blocked-by 0002
 
 > 出典: [ADR 0011 レート制御とサーキットブレーカ](../../../docs/adr/0011-rate-limit-and-circuit-breaker.md)
-> および [ADR 0008 インメモリキャッシュ](../../../docs/adr/0008-in-memory-cache.md) の実装
+> および [ADR 0016 永続が要る状態のために Redis を導入する](../../../docs/adr/0016-redis-for-persistent-state.md) の実装
+> （ADR 0008 は ADR 0016 に置き換えられたが、「作品メタのキャッシュはプロセス内 LRU」という判断は維持されている）
 
 ## 関連 Plan
 
 - [Plan 0001: 要件定義・アーキテクチャ設計・ADR 整備](0001-requirements-and-adr.md) — 分離元
 - [Plan 0002: プロジェクト基盤整備](0002-project-scaffold.md) — 依存
 - [Plan 0005: Ajax ソースとフォールバック連鎖](0005-ajax-source-and-chain.md) — 本 Plan の基盤を使う
+- [Plan 0011: 管理コマンド・濫用対策・Redis 永続化](0011-admin-and-abuse-control.md) — 永続が要る状態はそちらで Redis に置く
 
 ## 目的
 
@@ -41,8 +43,10 @@ rx-instagram に無かったもの（タイムアウト・リトライ・同時�
 ### 項目2: レート制御
 
 - **対象**: `src/infrastructure/http/RateLimiter.ts`
-- ホスト別トークンバケット。`www.pixiv.net` 1rps/burst3、`i.pximg.net` 8rps/同時4
-- 環境変数 `PIXIV_RPS` / `PXIMG_CONCURRENCY` で調整可能
+- ホスト別トークンバケット。`www.pixiv.net` 1rps/burst3
+- 環境変数 `PIXIV_RPS` で調整可能
+- `i.pximg.net` 向けの枠は [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) により
+  通常経路では不要（Bot が画像を取得しないため）。`MEDIA_FALLBACK=attachment` のときだけ使う
 
 ### 項目3: サーキットブレーカ
 
@@ -53,10 +57,14 @@ rx-instagram に無かったもの（タイムアウト・リトライ・同時�
 
 ### 項目4: キャッシュ
 
-- **対象**: `src/infrastructure/cache/{LruTtlCache,WorkCache,AttachmentUrlCache}.ts`
+- **対象**: `src/infrastructure/cache/{LruTtlCache,WorkCache}.ts`
 - TTL + LRU。`IWorkCache`（非同期）を実装する
 - ネガティブキャッシュ（`not_found`、TTL 10分）を含む
-- `AttachmentUrlCache` は Discord CDN URL の `ex` パラメータから TTL を導出する
+- **プロセス内のみ。** 永続が要る状態（禁止・展開拒否・返信マップ・クールダウン）は
+  [Plan 0011](0011-admin-and-abuse-control.md) で Redis に置く
+  （[ADR 0016](../../../docs/adr/0016-redis-for-persistent-state.md)）。
+  作品メタデータのキャッシュは高頻度・大量なので **Redis をホットパスに入れない**
+- `AttachmentUrlCache` は [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) により**不要になった**
 
 ### 項目5: 同時実行ユーティリティ
 

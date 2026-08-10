@@ -1,4 +1,4 @@
-# Plan 0006: NSFW ゲートとメディア取得
+# Plan 0006: NSFW ゲートとメディア URL 組み立て
 
 ## 実装状況: 未着手
 
@@ -9,7 +9,9 @@ edge: blocked-by 0003
 edge: blocked-by 0005
 
 > 出典: [ADR 0006 年齢制限コンテンツはフェイルクローズで扱う](../../../docs/adr/0006-age-restricted-content.md)
-> および [ADR 0005 画像は Bot が取得して Discord 添付として再配信する](../../../docs/adr/0005-media-delivery.md) の実装
+> および [ADR 0014 画像は画像プロキシの URL を埋め込む](../../../docs/adr/0014-media-delivery-via-proxy-url.md) の実装。
+> 当初は ADR 0005（添付アップロード）に基づく計画だったが、
+> ADR 0005 が ADR 0014 に置き換えられたため大幅に縮小した
 
 ## 関連 Plan
 
@@ -21,8 +23,7 @@ edge: blocked-by 0005
 ## 目的
 
 **この Bot でいちばん壊れてはいけない部分を作る。**
-年齢区分とチャンネル種別から展開可否を決め、
-`Referer` を付けて画像バイトを取得する。
+年齢区分とチャンネル種別から展開可否を決め、埋め込む画像 URL を組み立てる。
 
 ## 現状の挙動
 
@@ -51,41 +52,49 @@ edge: blocked-by 0005
 - 環境変数 `SENSITIVE_IN_SFW` / `UNKNOWN_RATING_SFW` / `SPOILER_IN_NSFW` で調整可能
 - **純粋関数として書く**（discord.js に依存しない）
 
-### 項目3: 画像取得
+### 項目3: 画像 URL の書き換え
 
-- **対象**: `src/infrastructure/http/PximgFetcher.ts`
-- `Referer: https://www.pixiv.net/` を付けて `i.pximg.net` から取得する
-- **PHPSESSID を送らない**
-- HEAD で `content-length` を事前確認（無駄な取得を始めないための最適化）
-- **バイト上限はストリーミング中のカウンタで強制する**。
-  予算を越えた時点で読み出しを中断する。`content-length` だけに頼らない
+- **対象**: `src/adapters/pixiv/ImageUrlRewriter.ts`
+- `https://i.pximg.net/<path>` → `${PXIMG_PROXY_BASE_URL}/<path>`（既定 `https://phixiv.net/i`）
+- **ホスト書き換えのみ。バイトを取得しない**
+- 入力が `i.pximg.net` 以外のホストだった場合は**書き換えず、埋め込みもしない**
+  （想定外の URL を無検査で埋め込まない）
+- 末尾スラッシュの有無を正規化する
 
 ### 項目4: メディア選択
 
 - **対象**: `src/core/services/MediaSelector.ts`
-- サイズ変種ラダー: `regular` → `small` → `thumb`（`IMAGE_VARIANT_PREFERENCE`）
+- サイズ変種は `regular` を使う（`IMAGE_VARIANT_PREFERENCE` で `small` / `thumb` へ変更可）
 - **`original` は選ばない**
 - 表示枚数: 既定4枚（`MAX_PAGES_DEFAULT`）、上限10枚（`MAX_PAGES_HARD`）
-- 総バイト予算は**メッセージ全体**で配分し、10% のヘッドルームを残す
+- **部分失敗を捨てない**: 一部のページしか URL を組み立てられなくても、
+  取れた分を表示し、残りは件数として注記する
 
-### 項目5: 添付上限の解決
-
-- **対象**: `src/adapters/discord/attachmentLimit.ts`
-- `guild.premiumTier` → バイト予算。rx-twitter の同名ファイルを移植する
-- **移植時に現行の Discord 仕様に対して値を再確認する**
-  （無料枠が 10 MiB に引き上げられた際に変わっている）
-
-### 項目6: ユーザープロフィールのサムネイル判定
+### 項目5: ユーザープロフィールのサムネイル判定
 
 - **対象**: `MediaSelector` / `NsfwPolicy` の適用箇所
 - 最近作サムネイルは**1枚ずつ**判定する。
   通常チャンネルで制限ありまたは判定不能なものは、そのサムネイルだけ落とす
   （カード全体を落とすのではない）
 
+### 項目6: 添付フォールバック（既定は無効）
+
+- **対象**: `src/infrastructure/http/PximgFetcher.ts`
+- [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) の第3段。
+  `MEDIA_FALLBACK=attachment` のときだけ有効
+- `Referer: https://www.pixiv.net/` を付けて取得し、`IMediaFetcher` の `bytes` を返す
+- **PHPSESSID を送らない**
+- **バイト上限はストリーミング中のカウンタで強制する**（`content-length` だけに頼らない）
+- **既定が無効である以上、v1 の完了条件からは外す**。実装は最小限でよい
+
 ## 影響範囲
 
-`core/services/` と `adapters/discord/`、`infrastructure/http/` にまたがる。
+`core/services/`、`adapters/discord/`、`adapters/pixiv/`。
 本 Plan の判定結果が Plan 0007 の描画を決める。
+
+ADR 0014 への切り替えにより、**当初計画から以下が不要になった**:
+`attachmentLimit.ts`（ブーストティア別バイト予算）、`AttachmentUrlCache`、
+メッセージ全体のバイト予算配分。
 
 ## テスト方針
 
@@ -96,14 +105,19 @@ edge: blocked-by 0005
    = 54 ケース。テーブル駆動で全件書く
 2. **`isAgeRestricted` の全 `ChannelType`**: Discord の全チャンネル型を列挙し、
    スレッドが親を見ること・DM がフェイルクローズであることを含めて検証する
-3. **`PximgFetcher`**: undici の `MockAgent` で
-   **`Referer` ヘッダが実際に送出されたこと**を検証する。
-   これがこのユニットの存在理由なので、ここだけはモジュールモックを使ってよい
+3. **`ImageUrlRewriter`**: `i.pximg.net` の各パス形（`img-master` / `custom-thumb` /
+   `user-profile`）が正しく書き換わること、
+   **`i.pximg.net` 以外のホストは書き換えず埋め込み対象から外れること**
 
 加えて:
-- `content-length` を詐称した応答（実体のほうが大きい）で、
-  **上限超過前に読み出しが中断される**ことを検証する
-- `MediaSelector` のバイト予算配分とラダー降格を検証する
+- `MediaSelector` の枚数上限と部分失敗時の挙動を検証する
+- `original` が選択されないことを担保する
+
+> **[ADR 0006 の既知の限界2](../../../docs/adr/0006-age-restricted-content.md)**:
+> R-18 の実レスポンスを fixture としてリポジトリに置けないため、
+> **実データ → `ContentRating` の写像だけは継続的な検証の外側にある**。
+> Plan 0005 のスパイクで観測した構造（フィールド名と値域）を合成 fixture に落とし、
+> `xRestrict` / `sl` / タグの3経路で冗長に判定することで、単一フィールドの誤読で倒れないようにする。
 
 ## 破壊的変更の許容範囲
 
@@ -111,19 +125,19 @@ edge: blocked-by 0005
 
 ## 要オーナー確認
 
-なし（方針は ADR 0006 で確定済み）。
+なし（方針は ADR 0006 / ADR 0014 で確定済み）。
 
 ## 完了条件
 
 - [ ] `NsfwPolicy` の 54 ケーステーブルテストが緑
 - [ ] `isAgeRestricted` の全 `ChannelType` テストが緑（スレッド・DM を含む）
-- [ ] `MockAgent` で `Referer` の送出が検証されている
-- [ ] `content-length` 詐称時に、上限超過前にストリーミングが中断される
+- [ ] `ImageUrlRewriter` が `i.pximg.net` 以外のホストを埋め込み対象から外す
 - [ ] `original` サイズが選択されないことがテストで担保されている
+- [ ] 部分失敗時に取れた分だけ表示される
 - [ ] `NsfwPolicy` が discord.js に依存していない（純粋関数）
-- [ ] PHPSESSID が `i.pximg.net` にも phixiv にも送られないことがテストで担保されている
-- [ ] `attachmentLimit` のティア別値を現行 Discord 仕様に対して再確認済み <!-- human-judgment -->
+- [ ] `xRestrict` / `sl` / タグの3経路で年齢区分を判定している（単一フィールド依存でない）
+- [ ] `PXIMG_PROXY_BASE_URL` を差し替えるだけでプロキシの向き先が変わる
 
 ## AI 実装時間見積もり
 
-2セッション程度。
+1セッション以内（ADR 0014 への切り替えで当初計画の約半分に縮小した）。

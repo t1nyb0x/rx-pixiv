@@ -87,8 +87,11 @@ README.md 不在に起因する6件が解消される見込み。
 ## 要オーナー確認
 
 - リポジトリ `t1nyb0x/rx-pixiv` の作成（remote は先行して張り替え済み）
-- [ADR 0005](../../../docs/adr/0005-media-delivery.md) の権利上の姿勢
-  （pixiv 画像を Discord 添付として再配信することの許容）
+- ~~[ADR 0005](../../../docs/adr/0005-media-delivery.md) の権利上の姿勢
+  （pixiv 画像を Discord 添付として再配信することの許容）~~
+  → **2026-08-10 に解消。** オーナーの指摘により
+  [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md) へ置き換え、
+  画像プロキシの URL を埋め込む方式に変更したため、再配信自体を行わなくなった
 
 ## 完了条件
 

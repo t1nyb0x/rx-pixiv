@@ -16,8 +16,9 @@ edge: blocked-by 0006
 
 - [Plan 0001: 要件定義・アーキテクチャ設計・ADR 整備](0001-requirements-and-adr.md) — 分離元
 - [Plan 0005: Ajax ソースとフォールバック連鎖](0005-ajax-source-and-chain.md) — 依存
-- [Plan 0006: NSFW ゲートとメディア取得](0006-nsfw-gate-and-media.md) — 依存
+- [Plan 0006: NSFW ゲートとメディア URL 組み立て](0006-nsfw-gate-and-media.md) — 依存
 - [Plan 0008: 運用面の仕上げ](0008-operations-hardening.md) — 本 Plan の後に着手する
+- [Plan 0011: 管理コマンド・濫用対策・Redis 永続化](0011-admin-and-abuse-control.md) — `MessageHandler` のゲート順序で実装が重なる
 
 ## 目的
 
@@ -50,10 +51,11 @@ edge: blocked-by 0006
 
 - **対象**: `src/adapters/discord/ComponentsV2Renderer.ts`、`EmbedRenderer.ts`
 - Components V2 が既定（`RENDERER=components_v2`）。
-  `MediaGalleryItem` は `attachment://<name>` で添付を参照し、
-  スポイラーは **item 単位**で立てる
+  `MediaGalleryItem` は**画像プロキシの URL** を直接参照し、
+  スポイラーは **item 単位**で立てる（外部 URL でも効く —
+  [ADR 0014](../../../docs/adr/0014-media-delivery-via-proxy-url.md)）
 - v1 Embed は退避経路（`RENDERER=embed`）。**本当に動くものとして維持する**
-- **送信前に硬いアサート**: 添付 ≤10、gallery item ≤10、embed ≤10。
+- **送信前に硬いアサート**: gallery item ≤10、embed ≤10。
   rx-instagram の既知バグ（上限超過で未捕捉例外）をここで塞ぐ
 
 ### 項目3: メッセージハンドラ
@@ -61,8 +63,9 @@ edge: blocked-by 0006
 - **対象**: `src/adapters/discord/MessageHandler.ts`
 - Bot 自身・他 Bot を無視、チャンネル送信可否を確認
 - `traceId` を発番し、子ロガーで通す
+- 禁止・許可チャンネル・クールダウンのゲートを通す（[Plan 0011](0011-admin-and-abuse-control.md) と実装が重なる）
 - `UrlDetector` → 最大3 URL、**同時実行2本**（`Promise.all` を無制限に使わない）
-- `WorkResolver` → `NsfwPolicy` → `MediaSelector` → `PximgFetcher` → `MessageComposer` → レンダラ
+- `WorkResolver` → `NsfwPolicy` → `MediaSelector` → `ImageUrlRewriter` → `MessageComposer` → レンダラ
 - `message.reply({ allowedMentions: { repliedUser: false } })`
 - 1件以上展開したら `message.suppressEmbeds(true)`。
   **失敗しても展開自体は続行する**
@@ -71,9 +74,11 @@ edge: blocked-by 0006
 ### 項目4: 返信の追従削除
 
 - **対象**: `src/adapters/discord/replyTracker.ts`
-- 元メッセージ ID → Bot 返信 ID のプロセス内 TTL Map（1時間）
+- 元メッセージ ID → Bot 返信 ID を Redis に保持（TTL 24h、`app:reply:{id}`）
 - `messageDelete` で Bot の返信を削除する
-- 再起動で失われることは許容済み（[ADR 0008](../../../docs/adr/0008-in-memory-cache.md)）
+- Redis 実装は [Plan 0011](0011-admin-and-abuse-control.md) で用意する。
+  本 Plan 単独で先行実装する場合はプロセス内 TTL Map で仮置きしてよい
+  （[ADR 0016](../../../docs/adr/0016-redis-for-persistent-state.md)）
 
 ### 項目5: DI 配線
 
@@ -96,7 +101,7 @@ edge: blocked-by 0006
 - discord.js は手書きのフェイク（`Partial<X> as X`）で代替する
 - **アサートは payload の特定フィールドに対して行う**。
   スナップショットは使わない（リファクタのたびに壊れ、読まれなくなる）
-- 上限超過（添付11件・gallery item 11件）で例外ではなくアサートエラーになること
+- 上限超過（gallery item 11件・embed 11件）で例外ではなくアサートエラーになること
 - 小説の抜粋テスト: 独自記法の除去と、`link_only` で抜粋が出ないこと
 
 ## 破壊的変更の許容範囲
@@ -112,7 +117,7 @@ edge: blocked-by 0006
 - [ ] 統合テスト4シナリオが `components_v2` と `embed` の**両方**で緑
 - [ ] `link_only` の payload にタイトル・タグ・作者名・サムネイルが含まれない
 - [ ] `skip` で `channel.send` / `message.reply` が一度も呼ばれない
-- [ ] 添付・gallery item・embed の上限超過が未捕捉例外にならない
+- [ ] gallery item・embed の上限超過が未捕捉例外にならない
 - [ ] `suppressEmbeds` が権限不足で失敗しても展開が続行される
 - [ ] ハンドラ内の例外が client へ漏れない
 - [ ] うごイラが「うごイラ（静止画のみ表示）」と明示される
