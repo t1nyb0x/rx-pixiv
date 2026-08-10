@@ -143,15 +143,68 @@ Discord Developer Portal で **Message Content Intent を有効化**する必要
 技術スタックは [ADR 0001](docs/adr/0001-tech-stack.md) で確定しています
 （TypeScript 6 / Node 24 / ESM / discord.js v14 / undici / zod / pino / Vitest / oxlint + oxfmt）。
 
-基盤コマンドは利用可能です。Node.js 24 を用意し、まず依存関係と環境変数を設定します。
+### 必要なもの
+
+- Node.js 24
+- Discord Bot tokenとMessage Content Intent
+- Redis 8（ローカルではComposeのRedisだけを起動可能）
+
+### ローカル起動
+
+依存関係と環境変数を用意します。
 
 ```bash
 npm ci
 cp .env.example .env
 ```
 
-`.env` の `DISCORD_TOKEN` と `OWNER_USER_ID` は必須です。`npm run dev` は `.env` があれば
-自動で読み込みます。設定項目と既定値は [.env.example](.env.example) を参照してください。
+`.env` の `DISCORD_TOKEN` と `OWNER_USER_ID` を設定してください。`.env` は秘密情報を含むため
+commitしないでください。`npm run dev` は `.env` があれば自動で読み込みます。
+
+Redisを先に起動してからBotを起動します。
+
+```bash
+docker compose up -d redis
+npm run dev
+```
+
+### 環境変数
+
+全項目と値の例は [.env.example](.env.example) にあります。
+
+| 変数 | 必須・既定 | 説明 |
+|---|---|---|
+| `DISCORD_TOKEN` | 必須 | Discord Bot token。秘密情報として扱う |
+| `OWNER_USER_ID` | 必須 | `!owner/...` を実行できるDiscordユーザーID |
+| `NODE_ENV` / `LOG_LEVEL` | `development` / `info` | 実行環境とログレベル。exampleは本番向けに`production` |
+| `ALLOWED_GUILD_IDS` / `ALLOWED_CHANNEL_IDS` | 空＝全許可 | 許可するDiscord IDのカンマ区切り |
+| `SOURCE_CHAIN` | `ajax,phixiv,ogp` | pixiv取得経路の試行順 |
+| `PHIXIV_BASE_URL` | `https://phixiv.net` | phixivメタデータ取得元 |
+| `PXIMG_PROXY_BASE_URL` | `https://phixiv.net/i` | `i.pximg.net`画像URLの書換え先 |
+| `RENDERER` | `components_v2` | `components_v2` または退避用の `embed` |
+| `REDIS_URL` | `redis://localhost:6379` | Redis接続先。TLSは`rediss://` |
+| `REDIS_DOWN_FALLBACK` | `deny` | Redis不通時に停止するか、未確認で展開するか |
+| `MAX_URLS_PER_MESSAGE` | `3` | 1メッセージから展開するURL数（上限3） |
+| `MAX_PAGES_DEFAULT` / `MAX_PAGES_HARD` | `4` / `10` | 通常表示枚数とDiscord上限 |
+| `FETCH_TOTAL_BUDGET_MS` / `SOURCE_TIMEOUT_MS` | `8000` / `3000` | URL全体と取得経路ごとの時間予算。OGPは最大2500ms |
+| `PIXIV_RPS` | `1` | pixivホストへの毎秒リクエスト数 |
+| `CIRCUIT_FAILURE_THRESHOLD` / `CIRCUIT_OPEN_MS` | `5` / `120000` | circuit breakerの失敗数と開放時間 |
+| `USER_COOLDOWN_MS` / `CHANNEL_COOLDOWN_MS` | `10000` / `5000` | 利用者・チャンネル単位のcooldown |
+| `SPOILER_IN_NSFW` | `true` | 年齢制限チャンネルでもspoilerを付ける |
+| `ALLOW_NSFW_IN_DM` | `false` | DMを年齢制限チャンネル相当として扱うか |
+| `SENSITIVE_IN_SFW` | `spoiler` | 将来互換用。v1では通常no-op |
+| `UNKNOWN_RATING_SFW` | `skip` | `skip` / `link_only` |
+| `IMAGE_VARIANT_PREFERENCE` | `regular,small,thumb` | 画像サイズの選好順。`original`は指定不可 |
+| `HEALTH_PORT` | `9090` | ヘルスサーバーの待受ポート |
+
+`REDIS_DOWN_FALLBACK=allow` は、banや削除要請のblockを確認できない状態でも展開を許します。
+開発時を除き、既定の `deny` を推奨します。`ALLOW_NSFW_IN_DM=true` も安全側の既定を緩める
+設定なので、運用方針を確認してから変更してください。
+
+`SENSITIVE_IN_SFW` は将来互換の設定です。v1の取得結果は `sensitive=false` 固定のため、
+通常は変更しても表示に影響しません。
+
+### 品質確認
 
 ```bash
 npm run build        # ビルド
@@ -163,10 +216,14 @@ npm run test:coverage
 npm run dev          # .env を読み込んで開発起動
 ```
 
-ローカル起動では別ターミナルで `docker compose up -d redis` を先に実行してください。
 Redisに接続できなくてもDiscord接続は続行しますが、既定の `REDIS_DOWN_FALLBACK=deny` では
 禁止・展開拒否を確認できないため全展開を止め、`/readyz` は503になります。`allow` は
 禁止や削除要請を適用できない状態で展開を許すため、開発時にリスクを理解した場合だけ使います。
+
+ローカル起動でもヘルスサーバーは `0.0.0.0:${HEALTH_PORT}` で全interfaceに待ち受けます。
+信頼できないLANやポート公開されたWSL/Docker環境では、firewall等で外部アクセスを遮断してください。
+
+### コンテナ起動
 
 コンテナで起動する場合は `docker compose up --build` を使います。ヘルスエンドポイント
 `/healthz`、`/readyz`、`/health`、`/metrics` はコンテナネットワーク内の `9090` 番で提供し、
