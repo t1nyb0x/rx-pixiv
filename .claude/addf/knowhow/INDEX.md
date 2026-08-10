@@ -13,6 +13,7 @@
 
 | ファイル | 要約 | キーワード |
 |---|---|---|
+| [design-phase-spike-and-numbering.md](design-phase-spike-and-numbering.md) | 設計フェーズの3つの型 — 実測で前提を潰す・決めない箇所を Proposed で残す・採番衝突で参照を誤る | 設計フェーズ, 要件定義, ADR, Proposed, スパイク, 実測, 採番, 相互参照, ドキュメントレビュー, 骨格プランニング |
 
 > ADDF 由来の知見は `ADDF/` 配下（29件）にある。上表は未インデックス分を含むため、
 > 初回タスク前に `/addf-knowhow-index reindex` で全件を再生成すること。

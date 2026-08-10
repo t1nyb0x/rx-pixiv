@@ -3,9 +3,36 @@
 rx-pixiv です。
 Discord 関連のプロジェクトとして `works/discord/` 配下に置かれている。
 
-> **未確定**: プロジェクトの目的・スコープは未記述（リポジトリは `LICENSE` のみの初期状態）。
-> ブートシーケンス手順4の骨格プランニング（`.claude/addf/plans/` が空のときに発動）で
-> オーナーにヒアリングし、このセクションを埋めること。
+## プロジェクト概要
+
+Discord に貼られた **pixiv の URL を展開する Bot**。
+`rx-twitter`（`rx-twitter/rx-twitter`）、`rx-instagram`（`t1nyb0x/rx-instagram`）に続く3本目。
+
+pixiv の URL を貼っても Discord のプレビューにはタイトルとロゴしか出ない。
+画像 CDN `i.pximg.net` が `Referer: https://www.pixiv.net/` を要求し、
+Discord の埋め込みプロキシがそれを付けられないためである。
+rx-pixiv は Bot 自身が `Referer` を付けて画像を取得し、Discord の添付として再配信する。
+
+**v1 スコープ**: イラスト・マンガ（複数ページ）／小説／ユーザープロフィール。
+うごイラはロードマップ送り。
+
+**設計上の最優先事項**: R-18 / R-18G 作品を年齢制限チャンネル以外に出さないこと。
+判断に迷う場面はすべて「出さない」に倒す（フェイルクローズ）。
+
+### 主要ドキュメント
+
+| 文書 | 内容 |
+|---|---|
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | 要件定義（機能 FR-1〜5 / 非機能 NFR-1〜6 / 制約） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | アーキテクチャ設計（層構成・データフロー・ドメインモデル） |
+| [docs/adr/](docs/adr/) | 設計判断の記録（ADR 0001〜0013） |
+| [TODO.md](TODO.md) | 実装フェーズのバックログ |
+
+### 実装前に必ず読むべき ADR
+
+- [ADR 0002 レイヤリングと依存方向](docs/adr/0002-layering.md) — `core/` から外側を import してはならない（lint で強制）
+- [ADR 0004 Result エラーモデル](docs/adr/0004-result-error-model.md) — 取得関数は例外を投げない
+- [ADR 0006 年齢制限コンテンツ](docs/adr/0006-age-restricted-content.md) — **この Bot でいちばん壊れてはいけない部分**
 
 # プロジェクト種別
 
@@ -44,14 +71,24 @@ CLAUDE.md も読み込むため両方が同時に効く。
 
 ## ビルド・Lint・テスト
 
-> **未確定**: 言語・ランタイム未選定のため、プロジェクト固有のコマンドは未定義。
-> 技術スタック決定時にこのセクションを埋めること。
+技術スタックは [ADR 0001](docs/adr/0001-tech-stack.md) で確定済み
+（TypeScript 6 / Node 24 / ESM / discord.js v14 / undici / zod / pino / Vitest / oxlint + oxfmt）。
+
+> **注**: 以下のコマンドは
+> [Plan 0002 プロジェクト基盤整備](.claude/addf/plans/0002-project-scaffold.md) で
+> `package.json` が作られた時点から利用可能になる。それ以前は ADDF のテストランナーのみが動く。
 
 | 種別 | コマンド |
 |---|---|
-| ビルド | （未定） |
-| Lint | （未定） |
-| テスト | （未定） |
+| ビルド | `npm run build` |
+| 型検査 | `npm run typecheck` |
+| Lint | `npm run lint`（oxlint） |
+| フォーマット | `npm run fmt` / 検査は `npx oxfmt --check src tests` |
+| テスト | `npm test` |
+| カバレッジ | `npm run test:coverage`（閾値: 行・文・関数 90% / 分岐 85%） |
+| 開発起動 | `npm run dev` |
+
+品質ゲートでは `build` → `typecheck` → `lint` → `test:coverage` の順に実行する。
 
 ADDF フレームワーク自体のテストランナー:
 
